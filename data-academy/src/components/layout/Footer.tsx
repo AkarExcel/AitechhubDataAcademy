@@ -29,10 +29,11 @@ export default function Footer() {
   return (
     <footer
       style={{
-        background: "var(--color-neutral-900)",
-        color: "var(--color-neutral-400)",
+        background: "var(--na-navy-900)",
+        color: "var(--na-gray-400)",
         paddingTop: "4rem",
         paddingBottom: "2rem",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
       }}
     >
       <div className="container">
@@ -47,28 +48,34 @@ export default function Footer() {
         >
           {/* Brand */}
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "1rem" }}>
               <div
                 style={{
                   width: 36,
                   height: 36,
                   borderRadius: "var(--radius-md)",
-                  background: "linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500))",
+                  background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-500))",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#fff",
-                  fontWeight: 800,
-                  fontSize: "1rem",
+                  boxShadow: "0 2px 8px rgba(0, 44, 75, 0.4)",
                 }}
               >
-                DA
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19h16M4 15l4-8 4 6 4-3 4 5" />
+                </svg>
               </div>
-              <span style={{ color: "#fff", fontWeight: 800, fontSize: "1.125rem", letterSpacing: "-0.03em" }}>
-                Data Academy
-              </span>
+              <div style={{ lineHeight: 1.15 }}>
+                <span style={{ color: "#fff", fontWeight: 800, fontSize: "1rem", letterSpacing: "-0.02em", display: "block" }}>
+                  AitecHub
+                </span>
+                <span style={{ color: "var(--na-blue-400)", fontWeight: 700, fontSize: "0.6875rem", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Data Academy
+                </span>
+              </div>
             </div>
-            <p style={{ fontSize: "0.875rem", lineHeight: 1.7, marginBottom: "1.5rem", maxWidth: "300px" }}>
+            <p style={{ fontSize: "0.875rem", lineHeight: 1.7, marginBottom: "1.5rem", maxWidth: "300px", color: "var(--na-gray-400)" }}>
               Master Data Science, AI, and Machine Learning through structured courses, 
               hands-on coding exercises, and real-world projects.
             </p>
@@ -83,23 +90,26 @@ export default function Footer() {
                     width: 36,
                     height: 36,
                     borderRadius: "var(--radius-md)",
-                    background: "rgb(255 255 255 / 0.07)",
+                    background: "rgba(255, 255, 255, 0.06)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "var(--color-neutral-400)",
+                    color: "var(--na-gray-300)",
                     fontSize: "0.75rem",
                     fontWeight: 600,
                     transition: "all var(--transition-fast)",
                     textDecoration: "none",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--color-brand-600)";
+                    e.currentTarget.style.background = "var(--na-blue-400)";
                     e.currentTarget.style.color = "#fff";
+                    e.currentTarget.style.borderColor = "var(--na-blue-400)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgb(255 255 255 / 0.07)";
-                    e.currentTarget.style.color = "var(--color-neutral-400)";
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                    e.currentTarget.style.color = "var(--na-gray-300)";
+                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
                   }}
                 >
                   {social[0]}

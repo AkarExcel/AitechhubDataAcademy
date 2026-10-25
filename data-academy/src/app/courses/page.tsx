@@ -52,6 +52,8 @@ async function getCourses(params: SearchParams) {
   return { courses, categories, total };
 }
 
+export const instant = false;
+
 export const metadata = {
   title: "Course Catalog",
   description: "Browse all Data Science, AI, and Machine Learning courses available on Data Academy.",
@@ -60,9 +62,9 @@ export const metadata = {
 export default async function CoursesPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
-  const params = await Promise.resolve(searchParams);
+  const params = await searchParams;
   const { courses, categories, total } = await getCourses(params);
 
   return (
@@ -71,9 +73,10 @@ export default async function CoursesPage({
       <main style={{ paddingTop: "var(--topbar-height)", minHeight: "100vh" }}>
         {/* Header */}
         <div style={{
-          background: "linear-gradient(135deg, var(--color-neutral-900), #1e1b4b)",
-          padding: "4rem 0 3rem",
+          background: "linear-gradient(135deg, var(--na-navy-900) 0%, var(--na-navy-800) 100%)",
+          padding: "4rem 0 3.5rem",
           textAlign: "center",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
         }}>
           <div className="container">
             <span className="badge badge-blue" style={{ marginBottom: "0.75rem" }}>
@@ -82,7 +85,7 @@ export default async function CoursesPage({
             <h1 style={{ color: "#fff", fontSize: "clamp(2rem, 5vw, 3rem)", marginBottom: "0.75rem" }}>
               Explore Our Courses
             </h1>
-            <p style={{ color: "#94a3b8", maxWidth: 540, margin: "0 auto" }}>
+            <p style={{ color: "var(--na-gray-300)", maxWidth: 540, margin: "0 auto" }}>
               Structured courses built around practical skills in Data Science, Analytics, AI, and Machine Learning.
             </p>
 
@@ -94,7 +97,7 @@ export default async function CoursesPage({
                 defaultValue={params.search}
                 placeholder="Search courses…"
                 className="input"
-                style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff" }}
+                style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}
               />
               <button type="submit" className="btn btn-primary">Search</button>
             </form>
@@ -106,7 +109,7 @@ export default async function CoursesPage({
             {/* Filters sidebar */}
             <aside style={{ width: 240, flexShrink: 0 }}>
               <div className="card" style={{ padding: "1.25rem", position: "sticky", top: "calc(var(--topbar-height) + 1rem)" }}>
-                <h3 style={{ fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500)", marginBottom: "1rem" }}>
+                <h3 style={{ fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--na-gray-500)", marginBottom: "1rem" }}>
                   Filters
                 </h3>
 
@@ -130,10 +133,10 @@ export default async function CoursesPage({
                           fontSize: "0.875rem",
                           fontWeight: params.level === opt.value || (!params.level && !opt.value) ? 600 : 400,
                           color: params.level === opt.value || (!params.level && !opt.value)
-                            ? "var(--color-brand-600)"
-                            : "var(--color-neutral-600)",
+                            ? "var(--na-blue-500)"
+                            : "var(--na-gray-600)",
                           background: params.level === opt.value || (!params.level && !opt.value)
-                            ? "var(--color-brand-50)"
+                            ? "#e0f2fe"
                             : "transparent",
                           textDecoration: "none",
                         }}
@@ -156,8 +159,9 @@ export default async function CoursesPage({
                           padding: "0.375rem 0.625rem",
                           borderRadius: "var(--radius-sm)",
                           fontSize: "0.875rem",
-                          color: !params.category ? "var(--color-brand-600)" : "var(--color-neutral-600)",
+                          color: !params.category ? "var(--na-blue-500)" : "var(--na-gray-600)",
                           fontWeight: !params.category ? 600 : 400,
+                          background: !params.category ? "#e0f2fe" : "transparent",
                           textDecoration: "none",
                         }}
                       >
@@ -172,8 +176,9 @@ export default async function CoursesPage({
                             padding: "0.375rem 0.625rem",
                             borderRadius: "var(--radius-sm)",
                             fontSize: "0.875rem",
-                            color: params.category === cat.slug ? "var(--color-brand-600)" : "var(--color-neutral-600)",
+                            color: params.category === cat.slug ? "var(--na-blue-500)" : "var(--na-gray-600)",
                             fontWeight: params.category === cat.slug ? 600 : 400,
+                            background: params.category === cat.slug ? "#e0f2fe" : "transparent",
                             textDecoration: "none",
                           }}
                         >
@@ -193,7 +198,7 @@ export default async function CoursesPage({
                       alignItems: "center",
                       gap: "0.5rem",
                       fontSize: "0.875rem",
-                      color: params.free === "true" ? "var(--color-brand-600)" : "var(--color-neutral-600)",
+                      color: params.free === "true" ? "var(--na-green-600)" : "var(--na-gray-600)",
                       fontWeight: params.free === "true" ? 600 : 400,
                       textDecoration: "none",
                     }}
@@ -202,8 +207,8 @@ export default async function CoursesPage({
                       width: 16,
                       height: 16,
                       borderRadius: 4,
-                      border: `2px solid ${params.free === "true" ? "var(--color-brand-500)" : "var(--color-neutral-300)"}`,
-                      background: params.free === "true" ? "var(--color-brand-500)" : "transparent",
+                      border: `2px solid ${params.free === "true" ? "var(--na-green-500)" : "var(--na-gray-300)"}`,
+                      background: params.free === "true" ? "var(--na-green-500)" : "transparent",
                       flexShrink: 0,
                       display: "flex",
                       alignItems: "center",
@@ -220,16 +225,18 @@ export default async function CoursesPage({
             {/* Course grid */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-                <p style={{ fontSize: "0.875rem", color: "var(--color-neutral-500)" }}>
+                <p style={{ fontSize: "0.875rem", color: "var(--na-gray-500)" }}>
                   {courses.length} course{courses.length !== 1 ? "s" : ""} found
                 </p>
               </div>
 
               {courses.length === 0 ? (
                 <div className="card" style={{ padding: "3rem", textAlign: "center" }}>
-                  <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔍</div>
+                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--na-gray-100)", color: "var(--na-gray-500)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem" }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  </div>
                   <h3 style={{ marginBottom: "0.5rem" }}>No courses found</h3>
-                  <p style={{ marginBottom: "1.5rem" }}>Try adjusting your search or filters.</p>
+                  <p style={{ marginBottom: "1.5rem", color: "var(--na-gray-500)" }}>Try adjusting your search or filters.</p>
                   <Link href="/courses" className="btn btn-secondary">Clear Filters</Link>
                 </div>
               ) : (
@@ -242,20 +249,31 @@ export default async function CoursesPage({
 
                     return (
                       <Link key={course.id} href={`/courses/${course.slug}`} style={{ textDecoration: "none" }}>
-                        <div className="card card-hover">
+                        <div className="card card-hover" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                           {/* Thumbnail */}
                           <div style={{
                             height: 170,
-                            background: "linear-gradient(135deg, var(--color-brand-700), var(--color-accent-500))",
+                            background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-600))",
                             position: "relative",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: "2.5rem",
+                            overflow: "hidden",
                           }}>
                             {course.coverImage ? (
                               <img src={course.coverImage} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : "📊"}
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "rgba(255,255,255,0.85)" }}>
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                                  <line x1="8" y1="21" x2="16" y2="21" />
+                                  <line x1="12" y1="17" x2="12" y2="21" />
+                                </svg>
+                                <span style={{ fontSize: "0.6875rem", fontWeight: 700, marginTop: "0.375rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                  {course.category?.name || "Curriculum"}
+                                </span>
+                              </div>
+                            )}
                             <div style={{ position: "absolute", top: "0.75rem", left: "0.75rem" }}>
                               <span className={`badge ${getLevelColor(course.level)}`}>
                                 {getLevelLabel(course.level)}
@@ -273,19 +291,47 @@ export default async function CoursesPage({
                             )}
                           </div>
 
-                          <div style={{ padding: "1.125rem" }}>
-                            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.375rem", color: "var(--color-neutral-900)" }}>
+                          <div style={{ padding: "1.125rem", flex: 1, display: "flex", flexDirection: "column" }}>
+                            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.375rem", color: "var(--na-gray-900)" }}>
                               {course.title}
                             </h3>
-                            <p style={{ fontSize: "0.8125rem", color: "var(--color-neutral-500)", marginBottom: "0.875rem", lineHeight: 1.6 }}>
+                            <p style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", marginBottom: "0.875rem", lineHeight: 1.6, flex: 1 }}>
                               {truncate(course.shortDescription, 90)}
                             </p>
 
-                            <div style={{ fontSize: "0.8125rem", color: "var(--color-neutral-500)", display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-                              <span>👤 {name}</span>
-                              <span>📚 {course._count.modules} modules</span>
-                              {course.estimatedHours > 0 && <span>⏱ {formatDuration(course.estimatedHours)}</span>}
-                              <span>👥 {course._count.enrollments} enrolled</span>
+                            <div style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", display: "flex", flexWrap: "wrap", gap: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--na-gray-100)" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="8" cy="5" r="3" />
+                                  <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+                                </svg>
+                                {name}
+                              </span>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <rect x="3" y="3" width="10" height="10" rx="2" />
+                                  <path d="M3 7h10M7 3v10" />
+                                </svg>
+                                {course._count.modules} modules
+                              </span>
+                              {course.estimatedHours > 0 && (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+                                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="8" cy="8" r="6" />
+                                    <path d="M8 5v3l2 2" />
+                                  </svg>
+                                  {formatDuration(course.estimatedHours)}
+                                </span>
+                              )}
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="6" cy="6" r="2.5" />
+                                  <path d="M1 13c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5" />
+                                  <circle cx="12" cy="6" r="2" />
+                                  <path d="M15 13c0-1.8-1.4-3.3-3.2-3.5" />
+                                </svg>
+                                {course._count.enrollments} enrolled
+                              </span>
                             </div>
                           </div>
                         </div>

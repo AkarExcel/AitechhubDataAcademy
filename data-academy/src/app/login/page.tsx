@@ -45,24 +45,30 @@ function LoginForm() {
       <div style={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
+          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.625rem", textDecoration: "none" }}>
             <div style={{
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, var(--color-brand-600), var(--color-accent-500))",
+              background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-500))",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: "#fff",
-              fontWeight: 800,
-              fontSize: "1.125rem",
+              boxShadow: "0 2px 8px rgba(0, 44, 75, 0.25)",
             }}>
-              DA
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19h16M4 15l4-8 4 6 4-3 4 5" />
+              </svg>
             </div>
-            <span style={{ fontWeight: 800, fontSize: "1.25rem", color: "var(--color-neutral-900)", letterSpacing: "-0.03em" }}>
-              Data Academy
-            </span>
+            <div style={{ textAlign: "left", lineHeight: 1.15 }}>
+              <span style={{ fontWeight: 800, fontSize: "1.125rem", color: "var(--na-gray-900)", display: "block" }}>
+                AitecHub
+              </span>
+              <span style={{ fontWeight: 700, fontSize: "0.75rem", color: "var(--na-blue-500)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                Data Academy
+              </span>
+            </div>
           </Link>
         </div>
 

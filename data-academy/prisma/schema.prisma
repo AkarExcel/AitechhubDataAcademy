@@ -575,10 +575,18 @@ model PlatformSetting {
 model Testimonial {
   id          String   @id @default(cuid())
   studentName String
+  role        String?
+  company     String?
   avatar      String?
   content     String
   rating      Int      @default(5)
   courseTitle String?
-  isApproved  Boolean  @default(false)
+  isApproved  Boolean  @default(true)
+  isFeatured  Boolean  @default(true)
+  order       Int      @default(0)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
+
+  @@index([isApproved, isFeatured])
+  @@index([order])
 }
