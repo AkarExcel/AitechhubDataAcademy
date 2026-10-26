@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/permissions";
 import Link from "next/link";
 import { getLevelColor, getLevelLabel } from "@/lib/utils";
 
@@ -67,6 +68,7 @@ async function getAdminOverviewData() {
 }
 
 export default async function AdminDashboardPage() {
+  await requireAdmin({ redirectUrl: "/tutor" });
   const { stats, recentCourses, tutors } = await getAdminOverviewData();
 
   return (

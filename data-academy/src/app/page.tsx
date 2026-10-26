@@ -2,57 +2,73 @@ import Navbar from "@/components/layout/Navbar";
 import HeroButtons from "@/components/HeroButtons";
 import Footer from "@/components/layout/Footer";
 import Link from "next/link";
+import CourseCard from "@/components/CourseCard";
 import { prisma } from "@/lib/prisma";
 import { getLevelColor, getLevelLabel, formatDuration, truncate } from "@/lib/utils";
 
 export const instant = false;
 
 async function getHomeData() {
-  const [featuredCourses, learningPaths, testimonials, stats] = await Promise.all([
-    prisma.course.findMany({
-      where: { status: "PUBLISHED", isFeatured: true },
-      take: 6,
-      include: {
-        category: true,
-        instructors: { include: { user: { include: { profile: true } } }, where: { isPrimary: true }, take: 1 },
-        _count: { select: { modules: true, enrollments: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.learningPath.findMany({
-      where: { isPublished: true },
-      orderBy: { order: "asc" },
-    }),
-    prisma.testimonial
-      .findMany({
-        where: { isApproved: true },
-        orderBy: { createdAt: "desc" },
-      })
-      .then((list) =>
-        list
-          .filter((t: any) => t.isFeatured !== false)
-          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-          .slice(0, 6)
-      ),
-    Promise.all([
-      prisma.course.count({ where: { status: "PUBLISHED" } }),
-      prisma.enrollment.count({ where: { status: "ACTIVE" } }),
-      prisma.enrollment.count({ where: { status: "COMPLETED" } }),
-      prisma.learningPath.count({ where: { isPublished: true } }),
-    ]),
-  ]);
+  try {
+    const [featuredCourses, learningPaths, testimonials, stats] = await Promise.all([
+      prisma.course.findMany({
+        where: { status: "PUBLISHED", isFeatured: true },
+        take: 6,
+        include: {
+          category: true,
+          instructors: { include: { user: { include: { profile: true } } }, where: { isPrimary: true }, take: 1 },
+          _count: { select: { modules: true, enrollments: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.learningPath.findMany({
+        where: { isPublished: true },
+        orderBy: { order: "asc" },
+      }),
+      prisma.testimonial
+        .findMany({
+          where: { isApproved: true },
+          orderBy: { createdAt: "desc" },
+        })
+        .then((list) =>
+          list
+            .filter((t: any) => t.isFeatured !== false)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+            .slice(0, 6)
+        ),
+      Promise.all([
+        prisma.course.count({ where: { status: "PUBLISHED" } }),
+        prisma.enrollment.count({ where: { status: "ACTIVE" } }),
+        prisma.enrollment.count({ where: { status: "COMPLETED" } }),
+        prisma.learningPath.count({ where: { isPublished: true } }),
+      ]),
+    ]);
 
-  return {
-    featuredCourses,
-    learningPaths,
-    testimonials,
-    stats: {
-      publishedCourses: stats[0],
-      activeLearners: stats[1],
-      completedEnrollments: stats[2],
-      learningPaths: stats[3],
-    },
-  };
+    return {
+      featuredCourses,
+      learningPaths,
+      testimonials,
+      stats: {
+        publishedCourses: stats[0],
+        activeLearners: stats[1],
+        completedEnrollments: stats[2],
+        learningPaths: stats[3],
+      },
+    };
+  } catch (error) {
+    console.warn("Could not load dynamic data from database, using fallback:", error);
+    return {
+      featuredCourses: [],
+      learningPaths: [],
+      testimonials: [],
+      stats: {
+        publishedCourses: 0,
+        activeLearners: 0,
+        completedEnrollments: 0,
+        learningPaths: 0,
+      },
+    };
+  }
 }
 
 const defaultPaths = [
@@ -553,109 +569,13 @@ export default async function HomePage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
                   gap: "1.5rem",
                 }}
-                className="stagger-children"
               >
-                {featuredCourses.map((course) => {
-                  const instructor = course.instructors[0]?.user;
-                  const name = instructor?.profile
-                    ? `${instructor.profile.firstName} ${instructor.profile.lastName}`
-                    : "Data Academy";
-
-                  return (
-                    <Link key={course.id} href={`/courses/${course.slug}`} style={{ textDecoration: "none" }}>
-                      <div className="card card-hover" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                        {/* Course Thumbnail */}
-                        <div
-                          style={{
-                            height: 180,
-                            background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-600))",
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {course.coverImage ? (
-                            <img src={course.coverImage} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "rgba(255,255,255,0.85)" }}>
-                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="2" y="3" width="20" height="14" rx="2" />
-                                <line x1="8" y1="21" x2="16" y2="21" />
-                                <line x1="12" y1="17" x2="12" y2="21" />
-                              </svg>
-                              <span style={{ fontSize: "0.75rem", fontWeight: 700, marginTop: "0.5rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                                {course.category?.name || "Data Course"}
-                              </span>
-                            </div>
-                          )}
-                          <div style={{ position: "absolute", top: "0.75rem", left: "0.75rem" }}>
-                            <span className={`badge ${getLevelColor(course.level)}`}>
-                              {getLevelLabel(course.level)}
-                            </span>
-                          </div>
-                          {course.isFree && (
-                            <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem" }}>
-                              <span className="badge badge-green">Free</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div style={{ padding: "1.25rem", flex: 1, display: "flex", flexDirection: "column" }}>
-                          <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--na-gray-900)" }}>
-                            {course.title}
-                          </h3>
-                          <p style={{ fontSize: "0.84375rem", color: "var(--na-gray-600)", marginBottom: "1.25rem", lineHeight: 1.6, flex: 1 }}>
-                            {truncate(course.shortDescription, 110)}
-                          </p>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              fontSize: "0.8125rem",
-                              color: "var(--na-gray-500)",
-                              paddingTop: "0.875rem",
-                              borderTop: "1px solid var(--na-gray-100)",
-                            }}
-                          >
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="8" cy="5" r="3" />
-                                <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-                              </svg>
-                              {name}
-                            </span>
-                            <div style={{ display: "flex", gap: "0.875rem" }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <rect x="3" y="3" width="10" height="10" rx="2" />
-                                  <path d="M3 7h10M7 3v10" />
-                                </svg>
-                                {course._count.modules} modules
-                              </span>
-                              {course.estimatedHours > 0 && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="8" cy="8" r="6" />
-                                    <path d="M8 5v3l2 2" />
-                                  </svg>
-                                  {formatDuration(course.estimatedHours)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+                {featuredCourses.map((course) => (
+                  <CourseCard key={course.id} course={course} />
+                ))}
               </div>
 
               <div style={{ textAlign: "center", marginTop: "2.5rem" }}>

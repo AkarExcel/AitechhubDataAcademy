@@ -967,6 +967,25 @@ export default function Navbar() {
                   <span>My Learning</span>
                   <span style={{ color: "var(--na-green-500)", fontWeight: 700 }}>&gt;</span>
                 </Link>
+                {(rawRole === "TUTOR" || rawRole === "ADMIN") && (
+                  <Link
+                    href="/tutor"
+                    onClick={() => setProfileDrawerOpen(false)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.625rem 0",
+                      color: "var(--na-green-600)",
+                      fontSize: "0.875rem",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <span>Instructor Portal</span>
+                    <span style={{ color: "var(--na-green-500)", fontWeight: 700 }}>&gt;</span>
+                  </Link>
+                )}
                 {rawRole === "ADMIN" && (
                   <Link
                     href="/admin"

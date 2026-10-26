@@ -152,13 +152,59 @@ export default async function StudentDashboard() {
               <div style={{ color: "#fff", fontSize: "0.875rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user?.profile?.firstName} {user?.profile?.lastName}
               </div>
-              <div style={{ color: "var(--na-gray-400)", fontSize: "0.75rem" }}>Student</div>
+              <div style={{ color: "var(--na-gray-400)", fontSize: "0.75rem" }}>
+                {sessionUser.role === "ADMIN"
+                  ? "Administrator"
+                  : sessionUser.role === "TUTOR"
+                  ? "Instructor / Tutor"
+                  : "Student"}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Nav */}
         <nav style={{ padding: "0.75rem 0.5rem", flex: 1 }}>
+          {sessionUser.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className="sidebar-nav-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                color: "#38bdf8",
+                fontWeight: 700,
+                marginBottom: "0.75rem",
+                background: "rgba(56, 189, 248, 0.12)",
+                padding: "0.625rem 0.75rem",
+                borderRadius: "var(--radius-sm)",
+                textDecoration: "none",
+              }}
+            >
+              <span>⚙ Admin Console →</span>
+            </Link>
+          )}
+          {sessionUser.role === "TUTOR" && (
+            <Link
+              href="/tutor"
+              className="sidebar-nav-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                color: "#4ade80",
+                fontWeight: 700,
+                marginBottom: "0.75rem",
+                background: "rgba(74, 222, 128, 0.12)",
+                padding: "0.625rem 0.75rem",
+                borderRadius: "var(--radius-sm)",
+                textDecoration: "none",
+              }}
+            >
+              <span>🎓 Instructor Portal →</span>
+            </Link>
+          )}
           {[
             {
               href: "/dashboard",

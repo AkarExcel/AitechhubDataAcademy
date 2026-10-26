@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") || "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,13 +28,33 @@ function LoginForm() {
 
       if (result?.error) {
         setError("Invalid email or password. Please try again.");
+        setLoading(false);
       } else {
-        router.push(callbackUrl);
-        router.refresh();
+        const session = await getSession();
+        const role = session?.user?.role;
+
+        const explicitCallback = params.get("callbackUrl");
+        let destination = "/dashboard";
+
+        if (
+          explicitCallback &&
+          explicitCallback !== "/dashboard" &&
+          explicitCallback !== "/login" &&
+          explicitCallback !== "/"
+        ) {
+          destination = explicitCallback;
+        } else if (role === "ADMIN") {
+          destination = "/admin";
+        } else if (role === "TUTOR") {
+          destination = "/tutor";
+        } else {
+          destination = "/dashboard";
+        }
+
+        window.location.href = destination;
       }
     } catch {
       setError("Something went wrong. Please try again.");
-    } finally {
       setLoading(false);
     }
   };

@@ -2,6 +2,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import CourseCard from "@/components/CourseCard";
 import { getLevelColor, getLevelLabel, formatDuration, truncate } from "@/lib/utils";
 
 interface SearchParams {
@@ -240,104 +241,10 @@ export default async function CoursesPage({
                   <Link href="/courses" className="btn btn-secondary">Clear Filters</Link>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.25rem" }}>
-                  {courses.map((course) => {
-                    const instructor = course.instructors[0]?.user;
-                    const name = instructor?.profile
-                      ? `${instructor.profile.firstName} ${instructor.profile.lastName}`
-                      : "Data Academy";
-
-                    return (
-                      <Link key={course.id} href={`/courses/${course.slug}`} style={{ textDecoration: "none" }}>
-                        <div className="card card-hover" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                          {/* Thumbnail */}
-                          <div style={{
-                            height: 170,
-                            background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-600))",
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                          }}>
-                            {course.coverImage ? (
-                              <img src={course.coverImage} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : (
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "rgba(255,255,255,0.85)" }}>
-                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                                  <line x1="8" y1="21" x2="16" y2="21" />
-                                  <line x1="12" y1="17" x2="12" y2="21" />
-                                </svg>
-                                <span style={{ fontSize: "0.6875rem", fontWeight: 700, marginTop: "0.375rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                                  {course.category?.name || "Curriculum"}
-                                </span>
-                              </div>
-                            )}
-                            <div style={{ position: "absolute", top: "0.75rem", left: "0.75rem" }}>
-                              <span className={`badge ${getLevelColor(course.level)}`}>
-                                {getLevelLabel(course.level)}
-                              </span>
-                            </div>
-                            {course.isFree && (
-                              <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem" }}>
-                                <span className="badge badge-green">Free</span>
-                              </div>
-                            )}
-                            {course.isFeatured && (
-                              <div style={{ position: "absolute", bottom: "0.75rem", right: "0.75rem" }}>
-                                <span className="badge badge-amber">Featured</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{ padding: "1.125rem", flex: 1, display: "flex", flexDirection: "column" }}>
-                            <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.375rem", color: "var(--na-gray-900)" }}>
-                              {course.title}
-                            </h3>
-                            <p style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", marginBottom: "0.875rem", lineHeight: 1.6, flex: 1 }}>
-                              {truncate(course.shortDescription, 90)}
-                            </p>
-
-                            <div style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", display: "flex", flexWrap: "wrap", gap: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--na-gray-100)" }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <circle cx="8" cy="5" r="3" />
-                                  <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-                                </svg>
-                                {name}
-                              </span>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <rect x="3" y="3" width="10" height="10" rx="2" />
-                                  <path d="M3 7h10M7 3v10" />
-                                </svg>
-                                {course._count.modules} modules
-                              </span>
-                              {course.estimatedHours > 0 && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="8" cy="8" r="6" />
-                                    <path d="M8 5v3l2 2" />
-                                  </svg>
-                                  {formatDuration(course.estimatedHours)}
-                                </span>
-                              )}
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
-                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <circle cx="6" cy="6" r="2.5" />
-                                  <path d="M1 13c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5" />
-                                  <circle cx="12" cy="6" r="2" />
-                                  <path d="M15 13c0-1.8-1.4-3.3-3.2-3.5" />
-                                </svg>
-                                {course._count.enrollments} enrolled
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: "1.5rem" }}>
+                  {courses.map((course) => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
                 </div>
               )}
             </div>

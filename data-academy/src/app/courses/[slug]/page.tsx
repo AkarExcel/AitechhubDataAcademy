@@ -1,6 +1,8 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import EnrollButton from "@/components/EnrollButton";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLevelColor, getLevelLabel, formatDuration } from "@/lib/utils";
@@ -47,6 +49,18 @@ export default async function CourseDetailPage({
 
   const primaryInstructor = course.instructors.find((i) => i.isPrimary) || course.instructors[0];
   const totalLessons = course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
+
+  const session = await auth();
+  const isEnrolled = session?.user?.id
+    ? !!(await prisma.enrollment.findUnique({
+        where: {
+          userId_courseId: {
+            userId: session.user.id,
+            courseId: course.id,
+          },
+        },
+      }))
+    : false;
 
   return (
     <>
@@ -95,20 +109,14 @@ export default async function CourseDetailPage({
 
               {/* Primary Actions */}
               <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-                <Link
-                  href={`/dashboard`}
-                  className="btn btn-green"
-                  style={{
-                    padding: "0.75rem 2rem",
-                    borderRadius: "9999px",
-                    fontWeight: 700,
-                    fontSize: "1rem",
-                    boxShadow: "0 4px 14px rgba(106, 191, 75, 0.35)",
-                    textDecoration: "none",
-                  }}
-                >
-                  Start Learning Now
-                </Link>
+                <EnrollButton
+                  courseId={course.id}
+                  courseSlug={course.slug}
+                  isEnrolled={isEnrolled}
+                  isFree={course.isFree}
+                  price={course.price}
+                  variant="hero"
+                />
 
                 <span style={{ fontSize: "0.8125rem", color: "var(--na-gray-400)" }}>
                   {course._count.enrollments > 0 ? `${course._count.enrollments} learners enrolled` : "Open for self-paced enrollment"}
@@ -266,13 +274,14 @@ export default async function CourseDetailPage({
                 </div>
 
                 <div style={{ marginTop: "1.5rem" }}>
-                  <Link
-                    href={`/dashboard`}
-                    className="btn btn-green"
-                    style={{ width: "100%", textAlign: "center", padding: "0.75rem", borderRadius: "9999px", fontWeight: 700 }}
-                  >
-                    Enroll in Course
-                  </Link>
+                  <EnrollButton
+                    courseId={course.id}
+                    courseSlug={course.slug}
+                    isEnrolled={isEnrolled}
+                    isFree={course.isFree}
+                    price={course.price}
+                    variant="sidebar"
+                  />
                 </div>
               </div>
 

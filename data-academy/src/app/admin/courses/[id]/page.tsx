@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import CourseEditorClient from "./CourseEditorClient";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getCurrentUser } from "@/lib/permissions";
 
 export const instant = false;
 
@@ -62,21 +63,32 @@ export default async function CourseEditorPage({
   const { id } = await params;
   const { tab } = await searchParams;
 
-  const { course, categories, availableTutors } = await getCourseAndDependencies(id);
+  const [user, { course, categories, availableTutors }] = await Promise.all([
+    getCurrentUser(),
+    getCourseAndDependencies(id),
+  ]);
 
   if (!course) {
     notFound();
   }
 
+  const isTutor = user?.role === "TUTOR";
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto" }}>
       {/* Breadcrumbs */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-        <Link href="/admin" style={{ color: "var(--na-blue-500)", fontSize: "0.875rem", textDecoration: "none" }}>
-          Admin
-        </Link>
+        {isTutor ? (
+          <Link href="/tutor" style={{ color: "var(--na-blue-500)", fontSize: "0.875rem", textDecoration: "none" }}>
+            Instructor Hub
+          </Link>
+        ) : (
+          <Link href="/admin" style={{ color: "var(--na-blue-500)", fontSize: "0.875rem", textDecoration: "none" }}>
+            Admin
+          </Link>
+        )}
         <span style={{ color: "var(--na-gray-400)" }}>/</span>
-        <Link href="/admin/courses" style={{ color: "var(--na-blue-500)", fontSize: "0.875rem", textDecoration: "none" }}>
+        <Link href={isTutor ? "/tutor" : "/admin/courses"} style={{ color: "var(--na-blue-500)", fontSize: "0.875rem", textDecoration: "none" }}>
           Courses
         </Link>
         <span style={{ color: "var(--na-gray-400)" }}>/</span>

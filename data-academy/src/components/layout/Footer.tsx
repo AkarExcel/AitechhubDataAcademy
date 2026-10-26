@@ -169,7 +169,7 @@ export default function Footer() {
           }}
         >
           <p style={{ fontSize: "0.8125rem" }}>
-            © {new Date().getFullYear()} Data Academy. All rights reserved.
+            © 2026 Data Academy. All rights reserved.
           </p>
           <p style={{ fontSize: "0.8125rem" }}>
             Built for learners, by learners.

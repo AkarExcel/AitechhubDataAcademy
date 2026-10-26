@@ -33,6 +33,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { Suspense } from "react";
+import NavigationProgressBar from "@/components/NavigationProgressBar";
+
 export default function RootLayout({
   children,
 }: {
@@ -41,7 +44,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} data-scroll-behavior="smooth">
       <body style={{ fontFamily: "var(--font-inter), var(--font-sans)" }}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <Suspense fallback={null}>
+            <NavigationProgressBar />
+          </Suspense>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

@@ -43,6 +43,12 @@ export const authConfig: NextAuthConfig = {
       // 1. Redirect already logged-in users away from /login and /register
       if (isAuthRoute) {
         if (isLoggedIn) {
+          if (userRole === "ADMIN") {
+            return Response.redirect(new URL("/admin", nextUrl));
+          }
+          if (userRole === "TUTOR") {
+            return Response.redirect(new URL("/tutor", nextUrl));
+          }
           return Response.redirect(new URL("/dashboard", nextUrl));
         }
         return true;

@@ -1,5 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
-import { requireAdmin } from "@/lib/permissions";
+import { requireRole } from "@/lib/permissions";
 import Link from "next/link";
 
 export default async function AdminLayout({
@@ -7,22 +7,43 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Enforce ADMIN role verification
-  await requireAdmin({ redirectUrl: "/unauthorized?required=ADMIN" });
+  // Allow both ADMIN and TUTOR roles into the management interface
+  const sessionUser = await requireRole(["TUTOR", "ADMIN"], {
+    redirectUrl: "/unauthorized?required=TUTOR,ADMIN",
+  });
+
+  const isAdmin = sessionUser.role === "ADMIN";
 
   const adminNav = [
-    {
-      href: "/admin",
-      label: "Admin Overview",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7" />
-          <rect x="14" y="3" width="7" height="7" />
-          <rect x="14" y="14" width="7" height="7" />
-          <rect x="3" y="14" width="7" height="7" />
-        </svg>
-      ),
-    },
+    ...(isAdmin
+      ? [
+          {
+            href: "/admin",
+            label: "Admin Overview",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            ),
+          },
+        ]
+      : [
+          {
+            href: "/tutor",
+            label: "Tutor Dashboard",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            ),
+          },
+        ]),
     {
       href: "/admin/courses",
       label: "Course Management",
@@ -44,28 +65,32 @@ export default async function AdminLayout({
         </svg>
       ),
     },
-    {
-      href: "/admin/tutors",
-      label: "Tutors & Instructors",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-      ),
-    },
-    {
-      href: "/admin/testimonials",
-      label: "Testimonials",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          <line x1="9" y1="10" x2="15" y2="10" />
-        </svg>
-      ),
-    },
+    ...(isAdmin
+      ? [
+          {
+            href: "/admin/tutors",
+            label: "Tutors & Instructors",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            ),
+          },
+          {
+            href: "/admin/testimonials",
+            label: "Testimonials",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <line x1="9" y1="10" x2="15" y2="10" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     {
       href: "/courses",
       label: "Public Catalog",
@@ -99,7 +124,7 @@ export default async function AdminLayout({
           paddingTop: "calc(var(--topbar-height) + var(--announce-height))",
         }}
       >
-        {/* Admin Sidebar */}
+        {/* Admin / Tutor Sidebar */}
         <aside
           style={{
             position: "sticky",
@@ -114,7 +139,7 @@ export default async function AdminLayout({
             borderRight: "1px solid rgba(255,255,255,0.06)",
           }}
         >
-          {/* Admin Header Badge */}
+          {/* Header Badge */}
           <div style={{ padding: "1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
               <div
@@ -122,7 +147,7 @@ export default async function AdminLayout({
                   width: 32,
                   height: 32,
                   borderRadius: "6px",
-                  background: "linear-gradient(135deg, #0284c7, #0369a1)",
+                  background: isAdmin ? "linear-gradient(135deg, #0284c7, #0369a1)" : "linear-gradient(135deg, #6abf4b, #166534)",
                   color: "#fff",
                   display: "flex",
                   alignItems: "center",
@@ -135,10 +160,10 @@ export default async function AdminLayout({
               </div>
               <div style={{ lineHeight: 1.2 }}>
                 <span style={{ color: "#fff", fontWeight: 800, fontSize: "0.8125rem", letterSpacing: "0.06em", textTransform: "uppercase", display: "block" }}>
-                  Admin Console
+                  {isAdmin ? "Admin Console" : "Instructor Hub"}
                 </span>
                 <span style={{ color: "var(--na-blue-400)", fontSize: "0.6875rem" }}>
-                  Course Operations
+                  {isAdmin ? "Course Operations" : "Curriculum & Lessons"}
                 </span>
               </div>
             </div>
