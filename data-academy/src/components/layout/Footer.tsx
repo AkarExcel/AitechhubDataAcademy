@@ -48,29 +48,21 @@ export default function Footer() {
         >
           {/* Brand */}
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "1rem" }}>
-              <div
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+              <img
+                src="/images/logo.png"
+                alt="AI Tech Hub"
                 style={{
                   width: 36,
                   height: 36,
-                  borderRadius: "var(--radius-md)",
-                  background: "linear-gradient(135deg, var(--na-navy-800), var(--na-blue-500))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  boxShadow: "0 2px 8px rgba(0, 44, 75, 0.4)",
+                  objectFit: "contain",
                 }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 19h16M4 15l4-8 4 6 4-3 4 5" />
-                </svg>
-              </div>
+              />
               <div style={{ lineHeight: 1.15 }}>
-                <span style={{ color: "#fff", fontWeight: 800, fontSize: "1rem", letterSpacing: "-0.02em", display: "block" }}>
-                  AitecHub
+                <span style={{ color: "#fff", fontWeight: 800, fontSize: "1.05rem", letterSpacing: "-0.02em", display: "block" }}>
+                  AI Tech Hub
                 </span>
-                <span style={{ color: "var(--na-blue-400)", fontWeight: 700, fontSize: "0.6875rem", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                <span style={{ color: "var(--brand-accent-300)", fontWeight: 700, fontSize: "0.6875rem", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                   Data Academy
                 </span>
               </div>

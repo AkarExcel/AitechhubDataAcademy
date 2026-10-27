@@ -184,6 +184,7 @@ export default function CourseEditorClient({
   const [lessonVideo, setLessonVideo] = useState("");
   const [lessonContent, setLessonContent] = useState("");
   const [lessonPreview, setLessonPreview] = useState(false);
+  const [lessonHeroImage, setLessonHeroImage] = useState("");
   const [lessonLoading, setLessonLoading] = useState(false);
   const [activeContentTab, setActiveContentTab] = useState<"write" | "preview">("write");
 
@@ -222,9 +223,23 @@ export default function CourseEditorClient({
       type: string;
       content: string;
       mediaUrl?: string;
+      videoUrl?: string;
+      starterCode?: string;
+      solutionHint?: string;
+      starterSql?: string;
+      schemaContext?: string;
+      downloadUrl?: string;
+      fileName?: string;
+      fileType?: string;
+      externalUrl?: string;
+      provider?: string;
+      starterRepoUrl?: string;
+      maxScore?: number;
       cards?: any[];
       practiceQuiz?: any;
       tabs?: any[];
+      quizQuestions?: any[];
+      deliverables?: any;
     }>
   >([]);
   const [editingSubIndex, setEditingSubIndex] = useState<number | null>(null);
@@ -421,6 +436,7 @@ export default function CourseEditorClient({
 
     setSubLessons([]);
     setEditingSubIndex(null);
+    setLessonHeroImage("");
 
     setShowLessonModal(true);
   };
@@ -459,6 +475,7 @@ export default function CourseEditorClient({
         explanation: "",
       },
     ]);
+    setLessonHeroImage("");
 
     if (lesson.content) {
       try {
@@ -470,6 +487,7 @@ export default function CourseEditorClient({
           } else {
             setSubLessons([]);
           }
+          if (parsed.heroImage) setLessonHeroImage(parsed.heroImage); else setLessonHeroImage("");
           if (parsed.starterCode) setStarterCode(parsed.starterCode);
           if (parsed.solutionHint) setSolutionHint(parsed.solutionHint);
           if (parsed.starterSql) setStarterSql(parsed.starterSql);
@@ -630,7 +648,27 @@ export default function CourseEditorClient({
       finalContent = JSON.stringify({
         format: "NETACAD_LESSON",
         instructions: lessonContent.trim(),
+        heroImage: lessonHeroImage.trim() || undefined,
         subLessons: subLessons,
+      });
+    } else if (lessonHeroImage.trim() && finalContent) {
+      // Inject heroImage into existing JSON payload if not using sub-lessons
+      try {
+        const existing = JSON.parse(finalContent);
+        existing.heroImage = lessonHeroImage.trim();
+        finalContent = JSON.stringify(existing);
+      } catch {
+        // If not JSON (plain text), wrap it
+        finalContent = JSON.stringify({
+          format: "READING",
+          instructions: finalContent,
+          heroImage: lessonHeroImage.trim(),
+        });
+      }
+    } else if (lessonHeroImage.trim() && !finalContent) {
+      finalContent = JSON.stringify({
+        format: "READING",
+        heroImage: lessonHeroImage.trim(),
       });
     }
 
@@ -1708,9 +1746,128 @@ export default function CourseEditorClient({
                 </div>
               </div>
 
-              {/* ── 3. CONDITIONAL FIELDS PER LESSON TYPE ── */}
+              {/* ── 3. HERO BANNER IMAGE (Optional) ── */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #011936 0%, #002c4b 100%)",
+                  borderRadius: "10px",
+                  padding: "1rem",
+                  border: "1px solid #0284c7",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "1.1rem" }}>🖼️</span>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#ffffff" }}>
+                      Hero Banner Image <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "0.8rem" }}>(Optional)</span>
+                    </h4>
+                    <p style={{ margin: 0, fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.15rem" }}>
+                      Full-screen image displayed behind the lesson title. A dark overlay is applied automatically so white text always pops.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                  {/* Preview thumbnail */}
+                  {lessonHeroImage ? (
+                    <div
+                      style={{
+                        width: 100,
+                        height: 60,
+                        borderRadius: "6px",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        border: "1.5px solid rgba(255,255,255,0.2)",
+                        position: "relative",
+                      }}
+                    >
+                      <img
+                        src={lessonHeroImage}
+                        alt="Hero preview"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                      {/* Dark overlay preview */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "rgba(1,25,54,0.6)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <span style={{ fontSize: "0.6rem", color: "#ffffff", fontWeight: 700, textAlign: "center", padding: "0 4px" }}>
+                          Preview
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: 100,
+                        height: 60,
+                        borderRadius: "6px",
+                        border: "1.5px dashed rgba(255,255,255,0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        color: "#64748b",
+                        fontSize: "0.65rem",
+                        textAlign: "center",
+                      }}
+                    >
+                      No image set
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/hero-image.jpg"
+                      value={lessonHeroImage}
+                      onChange={(e) => setLessonHeroImage(e.target.value)}
+                      className="input"
+                      style={{
+                        width: "100%",
+                        padding: "0.55rem 0.875rem",
+                        background: "rgba(255,255,255,0.07)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: "#f1f5f9",
+                        borderRadius: "6px",
+                        fontSize: "0.8125rem",
+                      }}
+                    />
+                    {lessonHeroImage && (
+                      <button
+                        type="button"
+                        onClick={() => setLessonHeroImage("")}
+                        style={{
+                          marginTop: "0.4rem",
+                          background: "transparent",
+                          border: "none",
+                          color: "#f87171",
+                          cursor: "pointer",
+                          fontSize: "0.75rem",
+                          padding: 0,
+                        }}
+                      >
+                        ✕ Remove image
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 4. CONDITIONAL FIELDS PER LESSON TYPE ── */}
 
               {/* VIDEO URL: Shown for VIDEO, VIDEO_READING, or optional for CODING/SQL/PROJECT */}
+
               {(lessonType === "VIDEO" || lessonType === "VIDEO_READING" || lessonType === "CODING_EXERCISE" || lessonType === "SQL_EXERCISE" || lessonType === "PROJECT" || lessonType === "ASSIGNMENT") && (
                 <div>
                   <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--na-gray-700)", marginBottom: "0.35rem" }}>
@@ -2440,11 +2597,15 @@ export default function CourseEditorClient({
                                     }}
                                     style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", borderRadius: "4px", border: "1px solid #cbd5e1" }}
                                   >
-                                    <option value="READING">Reading</option>
-                                    <option value="PRACTICE">Practice</option>
-                                    <option value="CODING_EXERCISE">Python Lab</option>
-                                    <option value="SQL_EXERCISE">SQL Lab</option>
-                                    <option value="QUIZ">Quiz</option>
+                                    <option value="READING">Reading Guide</option>
+                                    <option value="VIDEO">Video Lecture</option>
+                                    <option value="PRACTICE">Practice Scenario</option>
+                                    <option value="CODING_EXERCISE">Python Coding Lab</option>
+                                    <option value="SQL_EXERCISE">SQL Query Lab</option>
+                                    <option value="QUIZ">Concept Quiz</option>
+                                    <option value="DOWNLOADABLE">Downloadable Asset</option>
+                                    <option value="EXTERNAL_RESOURCE">External Tool</option>
+                                    <option value="PROJECT">Capstone Project</option>
                                   </select>
                                 </div>
                               </div>
@@ -2467,6 +2628,213 @@ export default function CourseEditorClient({
                                   style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
                                 />
                               </div>
+
+                              {/* Specialized fields per sub-lesson type */}
+                              {(sub.type === "VIDEO" || sub.type === "VIDEO_READING") && (
+                                <div>
+                                  <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Video URL (YouTube or Vimeo)</label>
+                                  <input
+                                    type="url"
+                                    placeholder="https://www.youtube.com/watch?v=..."
+                                    value={sub.videoUrl || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setSubLessons((prev) => {
+                                        const copy = [...prev];
+                                        copy[sIdx] = { ...copy[sIdx], videoUrl: val || undefined };
+                                        return copy;
+                                      });
+                                    }}
+                                    className="input"
+                                    style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                  />
+                                </div>
+                              )}
+
+                              {sub.type === "CODING_EXERCISE" && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Python Starter Code</label>
+                                    <textarea
+                                      rows={4}
+                                      value={sub.starterCode || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], starterCode: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="import numpy as np..."
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontFamily: "var(--font-mono)" }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Solution Hint (optional)</label>
+                                    <input
+                                      type="text"
+                                      value={sub.solutionHint || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], solutionHint: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="Consider using np.mean() along axis 0"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {sub.type === "SQL_EXERCISE" && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Target Schema Context</label>
+                                    <textarea
+                                      rows={2}
+                                      value={sub.schemaContext || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], schemaContext: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="orders(id, customer_id, amount, status)"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontFamily: "var(--font-mono)" }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>SQL Starter Query</label>
+                                    <textarea
+                                      rows={3}
+                                      value={sub.starterSql || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], starterSql: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="SELECT * FROM orders WHERE..."
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontFamily: "var(--font-mono)" }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {sub.type === "DOWNLOADABLE" && (
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.5rem" }}>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Download URL / Asset Path</label>
+                                    <input
+                                      type="text"
+                                      value={sub.downloadUrl || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], downloadUrl: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="/datasets/orders_data.zip"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>File Name</label>
+                                    <input
+                                      type="text"
+                                      value={sub.fileName || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], fileName: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="dataset.zip"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {sub.type === "EXTERNAL_RESOURCE" && (
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: "0.5rem" }}>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>External Tool URL</label>
+                                    <input
+                                      type="url"
+                                      value={sub.externalUrl || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], externalUrl: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="https://colab.research.google.com"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Provider Name</label>
+                                    <input
+                                      type="text"
+                                      value={sub.provider || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSubLessons((prev) => {
+                                          const copy = [...prev];
+                                          copy[sIdx] = { ...copy[sIdx], provider: val };
+                                          return copy;
+                                        });
+                                      }}
+                                      className="input"
+                                      placeholder="Google Colab"
+                                      style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {(sub.type === "PROJECT" || sub.type === "ASSIGNMENT") && (
+                                <div>
+                                  <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Starter Repo URL (optional)</label>
+                                  <input
+                                    type="url"
+                                    value={sub.starterRepoUrl || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setSubLessons((prev) => {
+                                        const copy = [...prev];
+                                        copy[sIdx] = { ...copy[sIdx], starterRepoUrl: val };
+                                        return copy;
+                                      });
+                                    }}
+                                    className="input"
+                                    placeholder="https://github.com/aitechhub/capstone-starter"
+                                    style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem" }}
+                                  />
+                                </div>
+                              )}
 
                               <div>
                                 <label style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.2rem" }}>Sub-Lesson Content (Markdown)</label>

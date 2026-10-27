@@ -1,62 +1,99 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 
-/* NETACAD DESIGN TOKENS */
+/* ==========================================================================
+   AI TECH HUB DESIGN SYSTEM (60:30:10 Color Rule)
+   Extracted from the official AI Tech Hub Logo:
+   - 60% Dominant Canvas: Clean Whites (#ffffff) & Cool Slate Surfaces (#f8fafc, #f1f5f9)
+   - 30% Structural Brand Blue: Deep Navy (#003366), Royal Brand Blue (#004074, #004b87)
+   - 10% Vibrant Accent: Cyan/Electric Gradient (#006fa8, #0088cc, #38bdf8) & Sparkles
+   ========================================================================== */
 :root {
-  /* Cisco / NetAcad Palette */
-  --na-blue-300:   #00bceb;
-  --na-blue-400:   #049fd9;
-  --na-blue-500:   #0082ae;
-  --na-blue-600:   #006589;
-  --na-blue-700:   #005073;
+  /* ── 30% STRUCTURAL BRAND BLUES (From Logo Stars, AI & TECH HUB) ── */
+  --brand-navy-950:   #001830;
+  --brand-navy-900:   #002244;
+  --brand-navy-800:   #003366; /* Logo Top Stars & Deep Navy */
+  --brand-blue-750:   #003d73;
+  --brand-blue-700:   #004074; /* Logo TECH HUB text & Letter Tops */
+  --brand-blue-600:   #004b87; /* Core AI Tech Hub Signature Blue */
+  --brand-blue-500:   #005a9e;
+  --brand-blue-subtle:#f0f6ff;
+  --brand-blue-tint:  #e0eefe;
 
-  --na-navy-700:   #0b2341;
-  --na-navy-800:   #002c4b;
-  --na-navy-900:   #011936;
+  /* ── 10% VIBRANT ACCENT & SPARKLE (From Logo Lower Gradient & Sparkle) ── */
+  --brand-accent-600: #005f94;
+  --brand-accent-500: #006fa8; /* Logo Vibrant Cyan-Blue */
+  --brand-accent-400: #0088cc; /* Electric Tech Cyan */
+  --brand-accent-300: #38bdf8; /* Sparkle Highlight */
+  --brand-accent-200: #bae6fd;
+  --brand-accent-glow:rgba(0, 111, 168, 0.28);
+  --brand-gradient:   linear-gradient(135deg, #003366 0%, #004b87 50%, #006fa8 100%);
+  --brand-accent-grad:linear-gradient(135deg, #004b87 0%, #0088cc 100%);
 
-  --na-green-50:   #f2f9ee;
-  --na-green-100:  #def1d6;
-  --na-green-200:  #bfe5b0;
-  --na-green-300:  #95d382;
-  --na-green-400:  #6abf4b;
-  --na-green-500:  #58a03d;
-  --na-green-600:  #46862e;
-  --na-green-700:  #336a21;
-  --na-green-800:  #224f17;
-  --na-green-900:  #12370c;
+  /* ── 60% DOMINANT CANVAS & NEUTRALS (Crisp, High-Readability Foundations) ── */
+  --canvas-white:     #ffffff;
+  --canvas-bg:        #f8fafc;
+  --canvas-surface:   #f1f5f9;
+  --canvas-border:    #e2e8f0;
+  --canvas-border-alt:#cbd5e1;
+  --canvas-muted:     #64748b;
+  --canvas-text:      #0f172a;
 
-  --na-amber:      #f37021;
-  --na-amber-light:#fff2e8;
+  /* Compatibility Aliases with original palette names */
+  --na-blue-300:      var(--brand-accent-300);
+  --na-blue-400:      var(--brand-accent-400);
+  --na-blue-500:      var(--brand-accent-500);
+  --na-blue-600:      var(--brand-blue-600);
+  --na-blue-700:      var(--brand-blue-700);
 
-  --na-white:      #ffffff;
-  --na-gray-50:    #f8fafc;
-  --na-gray-100:   #f1f5f9;
-  --na-gray-200:   #e2e8f0;
-  --na-gray-300:   #cbd5e1;
-  --na-gray-400:   #94a3b8;
-  --na-gray-500:   #64748b;
-  --na-gray-600:   #475569;
-  --na-gray-700:   #334155;
-  --na-gray-800:   #1e293b;
-  --na-gray-900:   #0f172a;
+  --na-navy-700:      var(--brand-blue-700);
+  --na-navy-800:      var(--brand-navy-800);
+  --na-navy-900:      var(--brand-navy-900);
 
-  --na-success:    #6abf4b;
-  --na-warning:    #f59e0b;
-  --na-danger:     #e53e3e;
-  --na-info:       #049fd9;
+  /* Remapped from old green to AI Tech Hub brand blue scale */
+  --na-green-50:      #f0f7ff;
+  --na-green-100:     #e0f0fe;
+  --na-green-200:     #bae6fd;
+  --na-green-300:     #7dd3fc;
+  --na-green-400:     var(--brand-accent-500);
+  --na-green-500:     var(--brand-blue-600);
+  --na-green-600:     var(--brand-blue-700);
+  --na-green-700:     var(--brand-navy-800);
+  --na-green-800:     var(--brand-navy-900);
+  --na-green-900:     var(--brand-navy-950);
 
-  /* Legacy aliases for compatibility */
+  --na-amber:         #f59e0b;
+  --na-amber-light:   #fffbeb;
+
+  --na-white:         #ffffff;
+  --na-gray-50:       #f8fafc;
+  --na-gray-100:      #f1f5f9;
+  --na-gray-200:      #e2e8f0;
+  --na-gray-300:      #cbd5e1;
+  --na-gray-400:      #94a3b8;
+  --na-gray-500:      #64748b;
+  --na-gray-600:      #475569;
+  --na-gray-700:      #334155;
+  --na-gray-800:      #1e293b;
+  --na-gray-900:      #0f172a;
+
+  --na-success:       #0284c7;
+  --na-warning:       #f59e0b;
+  --na-danger:        #ef4444;
+  --na-info:          var(--brand-accent-400);
+
+  /* Legacy brand aliases */
   --color-brand-50:   var(--na-green-50);
   --color-brand-100:  var(--na-green-100);
   --color-brand-200:  var(--na-green-200);
   --color-brand-300:  var(--na-green-300);
-  --color-brand-400:  var(--na-green-400);
-  --color-brand-500:  var(--na-green-400);
-  --color-brand-600:  var(--na-green-500);
-  --color-brand-700:  var(--na-green-600);
-  --color-brand-800:  var(--na-green-700);
-  --color-brand-900:  var(--na-green-900);
-  --color-accent-500: var(--na-blue-400);
-  --color-accent-600: var(--na-blue-500);
+  --color-brand-400:  var(--brand-accent-500);
+  --color-brand-500:  var(--brand-blue-600);
+  --color-brand-600:  var(--brand-blue-700);
+  --color-brand-700:  var(--brand-navy-800);
+  --color-brand-800:  var(--brand-navy-900);
+  --color-brand-900:  var(--brand-navy-950);
+  --color-accent-500: var(--brand-accent-500);
+  --color-accent-600: var(--brand-blue-600);
   --color-neutral-50:  var(--na-gray-50);
   --color-neutral-100: var(--na-gray-100);
   --color-neutral-200: var(--na-gray-200);
@@ -67,7 +104,7 @@
   --color-neutral-700: var(--na-gray-700);
   --color-neutral-800: var(--na-gray-800);
   --color-neutral-900: var(--na-gray-900);
-  --color-success: var(--na-success);
+  --color-success: var(--brand-accent-500);
   --color-warning: var(--na-warning);
   --color-danger:  var(--na-danger);
   --color-info:    var(--na-info);
@@ -80,8 +117,8 @@
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-  --shadow-lg: 0 10px 20px -4px rgb(0 0 0 / 0.12), 0 4px 8px -4px rgb(0 0 0 / 0.06);
-  --shadow-xl: 0 20px 40px -8px rgb(0 0 0 / 0.14);
+  --shadow-lg: 0 10px 20px -4px rgb(0 51 102 / 0.12), 0 4px 8px -4px rgb(0 0 0 / 0.06);
+  --shadow-xl: 0 20px 40px -8px rgb(0 51 102 / 0.18);
 
   --radius-sm:  4px;
   --radius-md:  8px;

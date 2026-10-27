@@ -35,12 +35,40 @@ export interface SubLesson {
   type: string;
   content?: string;
   mediaUrl?: string;
+  videoUrl?: string;
   cards?: SubLessonCard[];
   tabs?: SubLessonTab[];
   practiceQuiz?: {
     prompt?: string;
     scenarios: PracticeScenario[];
   };
+  // Coding Exercise Lab
+  starterCode?: string;
+  solutionHint?: string;
+  // SQL Lab
+  starterSql?: string;
+  schemaContext?: string;
+  // Quiz
+  passingScore?: number;
+  quizQuestions?: Array<{
+    id?: string;
+    question?: string;
+    prompt?: string;
+    options: string[];
+    correctIndex: number;
+    explanation?: string;
+  }>;
+  // Downloadable Asset
+  downloadUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  // External Tool / Link
+  externalUrl?: string;
+  provider?: string;
+  // Capstone Project / Assignment
+  deliverables?: string[] | string;
+  starterRepoUrl?: string;
+  maxScore?: number;
 }
 
 interface LessonResource {
@@ -60,6 +88,7 @@ interface Lesson {
   content?: string | null;
   learningObjectives?: string[];
   resources?: LessonResource[];
+  heroImage?: string | null;
 }
 
 interface Module {
@@ -101,12 +130,15 @@ export default function LearnPlayerClient({
   const router = useRouter();
 
   // Flatten all lessons in order
-  const allLessons: { lesson: Lesson; moduleTitle: string; moduleIndex: number }[] = [];
-  course.modules.forEach((mod, modIdx) => {
-    mod.lessons.forEach((les) => {
-      allLessons.push({ lesson: les, moduleTitle: mod.title, moduleIndex: modIdx + 1 });
+  const allLessons = useMemo(() => {
+    const list: { lesson: Lesson; moduleTitle: string; moduleIndex: number }[] = [];
+    course.modules.forEach((mod, modIdx) => {
+      mod.lessons.forEach((les) => {
+        list.push({ lesson: les, moduleTitle: mod.title, moduleIndex: modIdx + 1 });
+      });
     });
-  });
+    return list;
+  }, [course.modules]);
 
   // Track completed lessons as a Set of IDs
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>(() => {
@@ -137,7 +169,10 @@ export default function LearnPlayerClient({
     });
     return map;
   });
-  const [readerTheme, setReaderTheme] = useState<"light" | "dark">("light");
+  const [readerTheme, setReaderTheme] = useState<"light" | "dark">(() => {
+    const hour = new Date().getHours();
+    return hour < 6 || hour >= 19 ? "dark" : "light";
+  });
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [fontSize, setFontSize] = useState<"normal" | "large">("normal");
@@ -300,11 +335,63 @@ export default function LearnPlayerClient({
 
   const [activeSubLessonId, setActiveSubLessonId] = useState<string>("");
   const subLessonRefs = useRef<Record<string, HTMLElement | null>>({});
+  const lessonTopRef = useRef<HTMLDivElement | null>(null);
+  const prevLessonIdRef = useRef<string>(activeLessonId);
+  const isTransitioningRef = useRef<boolean>(false);
+  const isScrollingDownRef = useRef<boolean>(true);
+  const lastScrollYRef = useRef<number>(0);
 
-  // Reset activeSubLessonId on lesson change
+  // Track scroll direction so completion is never triggered when scrolling upward
   useEffect(() => {
-    if (currentSubLessons.length > 0) {
-      setActiveSubLessonId(currentSubLessons[0].id);
+    const handleScrollDirection = () => {
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      isScrollingDownRef.current = currentScrollY >= lastScrollYRef.current;
+      lastScrollYRef.current = currentScrollY;
+    };
+    window.addEventListener("scroll", handleScrollDirection, { passive: true });
+    return () => window.removeEventListener("scroll", handleScrollDirection);
+  }, []);
+
+  // Instantly start from the top when a new lesson is selected
+  const handleNavigateToLesson = (lessonId: string) => {
+    if (lessonId === activeLessonId) return;
+    isTransitioningRef.current = true;
+    setActiveLessonId(lessonId);
+
+    // Instantly reset scroll to top (never smooth-scroll upwards across sub-lessons)
+    window.scrollTo(0, 0);
+    if (typeof document !== "undefined") {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  };
+
+  // When lesson changes: immediately set active sub-lesson to first and guarantee top position
+  useEffect(() => {
+    if (prevLessonIdRef.current !== activeLessonId) {
+      prevLessonIdRef.current = activeLessonId;
+      isTransitioningRef.current = true;
+
+      // Always start with the first sub-lesson at the top
+      if (currentSubLessons.length > 0) {
+        setActiveSubLessonId(currentSubLessons[0].id);
+      }
+
+      // Hard instant reset to top
+      window.scrollTo(0, 0);
+      if (typeof document !== "undefined") {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }
+
+      // Keep transition lock active until the new lesson has fully mounted at top (0,0)
+      const timer = setTimeout(() => {
+        window.scrollTo(0, 0);
+        lessonTopRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
+        isTransitioningRef.current = false;
+      }, 250);
+
+      return () => clearTimeout(timer);
     }
   }, [activeLessonId, currentSubLessons]);
 
@@ -317,12 +404,18 @@ export default function LearnPlayerClient({
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // Disregard all intersection triggers during lesson transition to prevent bottom-to-top checks
+        if (isTransitioningRef.current) return;
+
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const subId = entry.target.getAttribute("data-sublesson-id");
             if (subId) {
               setActiveSubLessonId(subId);
-              setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+              // Only mark sub-lesson completed if actively reading downwards, NEVER during upward scroll
+              if (isScrollingDownRef.current && !isTransitioningRef.current) {
+                setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+              }
             }
           }
         });
@@ -371,6 +464,51 @@ export default function LearnPlayerClient({
 
   // Active tab per sub-lesson
   const [activeTabMap, setActiveTabMap] = useState<Record<string, string>>({});
+
+  // End-of-lesson feedback state ("Was this helpful?")
+  const [lessonFeedback, setLessonFeedback] = useState<
+    Record<string, { rating: "helpful" | "unhelpful" | null; reason: string; isSubmitted: boolean }>
+  >({});
+
+  const currentFeedback = lessonFeedback[activeLessonId] || { rating: null, reason: "", isSubmitted: false };
+
+  const handleSelectRating = (rating: "helpful" | "unhelpful") => {
+    setLessonFeedback((prev) => ({
+      ...prev,
+      [activeLessonId]: {
+        rating: prev[activeLessonId]?.rating === rating ? null : rating,
+        reason: prev[activeLessonId]?.rating === rating ? "" : (prev[activeLessonId]?.reason || ""),
+        isSubmitted: false,
+      },
+    }));
+  };
+
+  const handleSelectReason = (reason: string) => {
+    setLessonFeedback((prev) => ({
+      ...prev,
+      [activeLessonId]: {
+        ...(prev[activeLessonId] || { rating: "helpful", isSubmitted: false }),
+        reason,
+      },
+    }));
+  };
+
+  const handleSubmitFeedback = () => {
+    setLessonFeedback((prev) => ({
+      ...prev,
+      [activeLessonId]: {
+        ...(prev[activeLessonId] || { rating: "helpful", reason: "" }),
+        isSubmitted: true,
+      },
+    }));
+  };
+
+  const handleResetFeedback = () => {
+    setLessonFeedback((prev) => ({
+      ...prev,
+      [activeLessonId]: { rating: null, reason: "", isSubmitted: false },
+    }));
+  };
 
   const handlePracticeSubmit = (scenario: PracticeScenario) => {
     const selected = practiceAnswers[scenario.id];
@@ -451,7 +589,7 @@ export default function LearnPlayerClient({
 
       // If marked complete and there is a next lesson, advance to it!
       if (markComplete && nextLesson) {
-        setActiveLessonId(nextLesson.id);
+        handleNavigateToLesson(nextLesson.id);
       }
     } catch (err) {
       console.error(err);
@@ -529,6 +667,108 @@ export default function LearnPlayerClient({
     setSubmissionUrl("");
     setSubmittedProject(false);
   }, [activeLesson?.id, parsedLesson]);
+
+  // Sub-lesson interactive state maps
+  const [subStudentCode, setSubStudentCode] = useState<Record<string, string>>({});
+  const [subCodeOutput, setSubCodeOutput] = useState<Record<string, string | null>>({});
+  const [subIsRunningCode, setSubIsRunningCode] = useState<Record<string, boolean>>({});
+  const [subShowHint, setSubShowHint] = useState<Record<string, boolean>>({});
+  const [subCodeCopied, setSubCodeCopied] = useState<Record<string, boolean>>({});
+
+  const [subStudentSql, setSubStudentSql] = useState<Record<string, string>>({});
+  const [subSqlResult, setSubSqlResult] = useState<Record<string, any[] | null>>({});
+  const [subIsRunningSql, setSubIsRunningSql] = useState<Record<string, boolean>>({});
+  const [subShowSqlHint, setSubShowSqlHint] = useState<Record<string, boolean>>({});
+
+  const [subQuizAnswers, setSubQuizAnswers] = useState<Record<string, Record<number, number>>>({});
+  const [subQuizSubmitted, setSubQuizSubmitted] = useState<Record<string, boolean>>({});
+  const [subQuizScore, setSubQuizScore] = useState<Record<string, number | null>>({});
+
+  const [subDeliverables, setSubDeliverables] = useState<Record<string, Record<number, boolean>>>({});
+  const [subSubmissionUrl, setSubSubmissionUrl] = useState<Record<string, string>>({});
+  const [subSubmittedProject, setSubSubmittedProject] = useState<Record<string, boolean>>({});
+
+  const getEmbedUrl = (url?: string | null) => {
+    if (!url) return null;
+    if (url.includes("youtube.com/watch?v=")) {
+      return url.replace("watch?v=", "embed/");
+    }
+    if (url.includes("youtu.be/")) {
+      const id = url.split("youtu.be/")[1]?.split("?")[0];
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    if (url.includes("vimeo.com/")) {
+      const id = url.split("vimeo.com/")[1]?.split("?")[0];
+      return `https://player.vimeo.com/video/${id}`;
+    }
+    return url;
+  };
+
+  const handleRunSubPython = (subId: string) => {
+    setSubIsRunningCode((prev) => ({ ...prev, [subId]: true }));
+    setSubCodeOutput((prev) => ({ ...prev, [subId]: null }));
+    setTimeout(() => {
+      setSubIsRunningCode((prev) => ({ ...prev, [subId]: false }));
+      setSubCodeOutput((prev) => ({
+        ...prev,
+        [subId]:
+          "Python 3.11.8 (Conda env: data-academy)\n[✓] Environment verified & NumPy/Pandas initialized\n[✓] Executing script...\n[SUCCESS] Code ran without exceptions!\n   Output shape: (5, 4)\n   Memory usage: 280 bytes\n✓ All test assertions passed.",
+      }));
+      setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+    }, 700);
+  };
+
+  const handleCopySubCode = (subId: string, fallbackCode: string) => {
+    const code = subStudentCode[subId] ?? fallbackCode;
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(code);
+      setSubCodeCopied((prev) => ({ ...prev, [subId]: true }));
+      setTimeout(() => setSubCodeCopied((prev) => ({ ...prev, [subId]: false })), 2000);
+    }
+  };
+
+  const handleExecuteSubSql = (subId: string) => {
+    setSubIsRunningSql((prev) => ({ ...prev, [subId]: true }));
+    setSubSqlResult((prev) => ({ ...prev, [subId]: null }));
+    setTimeout(() => {
+      setSubIsRunningSql((prev) => ({ ...prev, [subId]: false }));
+      setSubSqlResult((prev) => ({
+        ...prev,
+        [subId]: [
+          { id: 101, name: "Alpha Logistics", segment: "Enterprise", total_orders: 142, total_revenue: "$48,900" },
+          { id: 102, name: "Omni Retail", segment: "Mid-Market", total_orders: 89, total_revenue: "$32,450" },
+          { id: 103, name: "Blue Sky AI", segment: "Enterprise", total_orders: 76, total_revenue: "$29,100" },
+          { id: 104, name: "Peak Media", segment: "SMB", total_orders: 41, total_revenue: "$18,700" },
+        ],
+      }));
+      setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+    }, 600);
+  };
+
+  const handleSubmitSubQuiz = (subId: string, questions?: any[], passingScore = 70) => {
+    if (!questions || !Array.isArray(questions) || questions.length === 0) return;
+    const answers = subQuizAnswers[subId] || {};
+    let correctCount = 0;
+    questions.forEach((q: any, i: number) => {
+      if (answers[i] === q.correctIndex) {
+        correctCount++;
+      }
+    });
+    const pct = Math.round((correctCount / questions.length) * 100);
+    setSubQuizScore((prev) => ({ ...prev, [subId]: pct }));
+    setSubQuizSubmitted((prev) => ({ ...prev, [subId]: true }));
+    if (pct >= passingScore) {
+      setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+    }
+  };
+
+  const handleSubmitSubProject = (subId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    const url = subSubmissionUrl[subId] || "";
+    if (!url.trim()) return;
+    setSubSubmittedProject((prev) => ({ ...prev, [subId]: true }));
+    setCompletedSubLessons((prev) => ({ ...prev, [subId]: true }));
+  };
 
   const handleRunPythonCode = () => {
     setIsRunningCode(true);
@@ -623,20 +863,21 @@ export default function LearnPlayerClient({
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: readerTheme === "dark" ? "#0b1329" : "#f8fafc" }}>
       {/* ── TOP HEADER (Cisco NetAcad Style) ── */}
+      {/* ── TOP HEADER (AI Tech Hub Course Reader) ── */}
       <header
         style={{
           height: 60,
-          background: "#ffffff",
-          color: "#0f172a",
+          background: readerTheme === "dark" ? "#0a1226" : "#ffffff",
+          color: readerTheme === "dark" ? "#f8fafc" : "#0f172a",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 1.5rem",
-          borderBottom: "1px solid #e2e8f0",
+          borderBottom: readerTheme === "dark" ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid #e2e8f0",
           position: "sticky",
           top: 0,
           zIndex: 40,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+          boxShadow: readerTheme === "dark" ? "0 2px 10px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.03)",
         }}
       >
         {/* Left: Brand & Course Title */}
@@ -651,22 +892,22 @@ export default function LearnPlayerClient({
               flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: "0.9375rem", fontWeight: 900, color: "#011936", letterSpacing: "-0.02em" }}>
+            <span style={{ fontSize: "0.9375rem", fontWeight: 900, color: readerTheme === "dark" ? "#ffffff" : "var(--brand-navy-800, #003366)", letterSpacing: "-0.02em" }}>
               AITECHHUB
             </span>
-            <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#049fd9", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--brand-accent-400, #0088cc)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
               Data Academy
             </span>
           </Link>
 
-          <div style={{ width: 1, height: 26, background: "#cbd5e1", flexShrink: 0 }} />
+          <div style={{ width: 1, height: 26, background: readerTheme === "dark" ? "rgba(255, 255, 255, 0.15)" : "#cbd5e1", flexShrink: 0 }} />
 
           <h1
             style={{
               fontSize: "1.05rem",
               fontWeight: 600,
               margin: 0,
-              color: "#334155",
+              color: readerTheme === "dark" ? "#ffffff" : "#334155",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -678,7 +919,7 @@ export default function LearnPlayerClient({
 
         {/* Right Controls: Book Toggle, Analytics Popover, Exit Close Button */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", position: "relative" }}>
-          {/* Outline Book Icon (Cisco Green) */}
+          {/* Outline Book Icon */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             title={sidebarOpen ? "Hide Course Outline" : "Show Course Outline"}
@@ -686,9 +927,9 @@ export default function LearnPlayerClient({
               width: 36,
               height: 36,
               borderRadius: "6px",
-              border: "1.5px solid #58a03d",
-              background: sidebarOpen ? "#f2f9ee" : "transparent",
-              color: "#58a03d",
+              border: readerTheme === "dark" ? "1.5px solid var(--brand-accent-400)" : "1.5px solid var(--brand-blue-600)",
+              background: sidebarOpen ? (readerTheme === "dark" ? "rgba(0, 111, 168, 0.2)" : "var(--brand-blue-subtle)") : "transparent",
+              color: readerTheme === "dark" ? "#ffffff" : "var(--brand-blue-600)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -711,9 +952,9 @@ export default function LearnPlayerClient({
                 width: 36,
                 height: 36,
                 borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                background: showProgressModal ? "#f1f5f9" : "transparent",
-                color: "#475569",
+                border: readerTheme === "dark" ? "1px solid rgba(255,255,255,0.2)" : "1px solid #cbd5e1",
+                background: showProgressModal ? (readerTheme === "dark" ? "rgba(255,255,255,0.1)" : "#f1f5f9") : "transparent",
+                color: readerTheme === "dark" ? "#ffffff" : "#475569",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -736,37 +977,37 @@ export default function LearnPlayerClient({
                   right: 0,
                   top: 46,
                   width: 290,
-                  background: "#ffffff",
+                  background: readerTheme === "dark" ? "#1e293b" : "#ffffff",
                   borderRadius: "10px",
-                  boxShadow: "0 12px 28px rgba(0,0,0,0.14)",
-                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+                  border: readerTheme === "dark" ? "1px solid rgba(255,255,255,0.12)" : "1px solid #e2e8f0",
                   padding: "1.1rem",
                   zIndex: 50,
-                  color: "#1e293b",
+                  color: readerTheme === "dark" ? "#ffffff" : "#1e293b",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                  <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "#011936" }}>
+                  <span style={{ fontWeight: 700, fontSize: "0.875rem", color: readerTheme === "dark" ? "#ffffff" : "#011936" }}>
                     Course Progress
                   </span>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#58a03d" }}>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--brand-accent-300)" }}>
                     {progressPercent}%
                   </span>
                 </div>
-                <div style={{ height: 6, background: "#e2e8f0", borderRadius: 999, overflow: "hidden", marginBottom: "0.85rem" }}>
+                <div style={{ height: 6, background: readerTheme === "dark" ? "rgba(255,255,255,0.1)" : "#e2e8f0", borderRadius: 999, overflow: "hidden", marginBottom: "0.85rem" }}>
                   <div
                     style={{
                       width: `${progressPercent}%`,
                       height: "100%",
-                      background: "#58a03d",
+                      background: "var(--brand-accent-500)",
                       transition: "width 0.3s ease",
                     }}
                   />
                 </div>
-                <div style={{ fontSize: "0.8125rem", color: "#64748b", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  <div>Completed: <strong style={{ color: "#1e293b" }}>{completedCount}</strong> of <strong style={{ color: "#1e293b" }}>{totalLessons}</strong> lessons</div>
-                  <div>Current Module: <strong style={{ color: "#0284c7" }}>{activeItem?.moduleTitle}</strong></div>
-                  <div>Certificate: <strong style={{ color: course.certificateEnabled ? "#58a03d" : "#94a3b8" }}>{course.certificateEnabled ? "Available at 100%" : "Not enrolled"}</strong></div>
+                <div style={{ fontSize: "0.8125rem", color: readerTheme === "dark" ? "#cbd5e1" : "#64748b", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <div>Completed: <strong style={{ color: readerTheme === "dark" ? "#ffffff" : "#1e293b" }}>{completedCount}</strong> of <strong style={{ color: readerTheme === "dark" ? "#ffffff" : "#1e293b" }}>{totalLessons}</strong> lessons</div>
+                  <div>Current Module: <strong style={{ color: "var(--brand-accent-300)" }}>{activeItem?.moduleTitle}</strong></div>
+                  <div>Certificate: <strong style={{ color: course.certificateEnabled ? "#22c55e" : (readerTheme === "dark" ? "#94a3b8" : "#94a3b8") }}>{course.certificateEnabled ? "Available at 100%" : "Not enrolled"}</strong></div>
                 </div>
               </div>
             )}
@@ -783,7 +1024,7 @@ export default function LearnPlayerClient({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#64748b",
+              color: readerTheme === "dark" ? "#ffffff" : "#64748b",
               textDecoration: "none",
               fontSize: "1.25rem",
               fontWeight: 400,
@@ -1039,7 +1280,7 @@ export default function LearnPlayerClient({
                                 return (
                                   <div key={lesson.id} style={{ display: "flex", flexDirection: "column", width: "100%" }}>
                                     <button
-                                      onClick={() => setActiveLessonId(lesson.id)}
+                                      onClick={() => handleNavigateToLesson(lesson.id)}
                                       style={{
                                         position: "relative",
                                         display: "flex",
@@ -1253,24 +1494,31 @@ export default function LearnPlayerClient({
             display: "flex",
             flexDirection: "column",
             minWidth: 0,
-            overflowX: "hidden",
+            overflow: "clip",
+            position: "relative",
             background: readerTheme === "dark" ? "#0f172a" : "#ffffff",
             color: readerTheme === "dark" ? "#f8fafc" : "#0f172a",
           }}
         >
-          {/* ── BREADCRUMB & UTILITIES STRIP ── */}
+          {/* Scroll Target Anchor */}
+          <div ref={lessonTopRef} id="lesson-top" style={{ position: "absolute", top: 0, left: 0, height: 1, width: 1, pointerEvents: "none" }} />
+          {/* ── BREADCRUMB & UTILITIES STRIP (Sticky under top header) ── */}
           <div
             style={{
-              height: 42,
-              borderBottom: "1px solid #e2e8f0",
-              background: readerTheme === "dark" ? "#0f172a" : "#ffffff",
+              height: 54,
+              borderBottom: readerTheme === "dark" ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid #e2e8f0",
+              background: readerTheme === "dark" ? "rgba(15, 23, 42, 0.96)" : "rgba(255, 255, 255, 0.96)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              color: readerTheme === "dark" ? "#ffffff" : "#0f172a",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               padding: "0 1.25rem",
               position: "sticky",
               top: 60,
-              zIndex: 20,
+              zIndex: 35,
+              boxShadow: readerTheme === "dark" ? "0 4px 16px rgba(0, 0, 0, 0.4)" : "0 2px 8px rgba(0, 0, 0, 0.03)",
             }}
           >
             {/* Left: Sidebar toggle & breadcrumb */}
@@ -1283,9 +1531,10 @@ export default function LearnPlayerClient({
                   border: "none",
                   cursor: "pointer",
                   padding: "0.25rem",
-                  color: "#64748b",
+                  color: readerTheme === "dark" ? "#ffffff" : "#475569",
                   display: "flex",
                   alignItems: "center",
+                  transition: "color 0.15s ease",
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1301,31 +1550,23 @@ export default function LearnPlayerClient({
                   alignItems: "center",
                   gap: "0.4rem",
                   fontSize: "0.8125rem",
-                  color: "#64748b",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                 }}
               >
-                <span>{activeItem?.moduleTitle}</span>
-                <span>›</span>
-                <span style={{ fontWeight: 600, color: "#011936" }}>
+                <span style={{ color: readerTheme === "dark" ? "rgba(255, 255, 255, 0.85)" : "#64748b" }}>
+                  {activeItem?.moduleTitle}
+                </span>
+                <span style={{ color: readerTheme === "dark" ? "rgba(255, 255, 255, 0.5)" : "#94a3b8" }}>›</span>
+                <span style={{ fontWeight: 700, color: readerTheme === "dark" ? "#ffffff" : "#011936" }}>
                   {currentActiveSubLesson ? `${currentActiveSubLesson.sectionNumber} ${currentActiveSubLesson.title}` : activeLesson?.title}
                 </span>
               </div>
             </div>
 
-            {/* Right: Tools & Toggles (Theme, Font, EN, Bookmark, Fullscreen) */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", color: "#64748b", fontSize: "0.8125rem" }}>
-              {/* Theme toggle */}
-              <button
-                onClick={() => setReaderTheme(readerTheme === "light" ? "dark" : "light")}
-                title={readerTheme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
-                style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "0.95rem" }}
-              >
-                {readerTheme === "light" ? "🌙" : "☀️"}
-              </button>
-
+            {/* Right: Tools & Toggles (Font, EN, Bookmark, Fullscreen, Theme) */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", color: readerTheme === "dark" ? "#ffffff" : "#64748b", fontSize: "0.8125rem" }}>
               {/* Font size toggle */}
               <button
                 onClick={() => setFontSize(fontSize === "normal" ? "large" : "normal")}
@@ -1336,14 +1577,15 @@ export default function LearnPlayerClient({
                   cursor: "pointer",
                   fontWeight: 700,
                   fontSize: "0.8rem",
-                  color: "#64748b",
+                  color: readerTheme === "dark" ? "#ffffff" : "#475569",
+                  padding: "0.2rem",
                 }}
               >
                 {fontSize === "normal" ? "A+" : "A-"}
               </button>
 
               {/* EN language indicator */}
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontWeight: 600 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", fontWeight: 600, color: readerTheme === "dark" ? "#ffffff" : "#475569" }}>
                 🌐 EN
               </span>
 
@@ -1355,8 +1597,9 @@ export default function LearnPlayerClient({
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
-                  color: isBookmarked ? "#f59e0b" : "#94a3b8",
+                  color: isBookmarked ? "#f59e0b" : (readerTheme === "dark" ? "#ffffff" : "#94a3b8"),
                   fontSize: "0.95rem",
+                  padding: "0.2rem",
                 }}
               >
                 {isBookmarked ? "★" : "☆"}
@@ -1372,227 +1615,274 @@ export default function LearnPlayerClient({
                   }
                 }}
                 title="Toggle Fullscreen"
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: readerTheme === "dark" ? "#ffffff" : "#475569",
+                  fontSize: "0.95rem",
+                  padding: "0.2rem",
+                }}
               >
                 ⛶
+              </button>
+
+              {/* Theme toggle — last, after fullscreen */}
+              <button
+                onClick={() => setReaderTheme(readerTheme === "light" ? "dark" : "light")}
+                title={readerTheme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "0.95rem", padding: "0.2rem" }}
+              >
+                {readerTheme === "light" ? "🌙" : "☀️"}
               </button>
             </div>
           </div>
 
           {/* ── PANORAMIC IMMERSIVE HERO BANNER (Cisco Style with Brand Colors) ── */}
-          {activeLesson && (
-            <div
-              style={{
-                position: "relative",
-                minHeight: 260,
-                background: "linear-gradient(135deg, #011936 0%, #002c4b 45%, #005073 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "3.5rem 2rem",
-                color: "#ffffff",
-                overflow: "hidden",
-              }}
-            >
-              {/* High tech grid background pattern */}
+          {activeLesson && (() => {
+            // Extract heroImage from parsed lesson content
+            let lessonHeroImage: string | null = null;
+            if (activeLesson.content) {
+              try {
+                const p = JSON.parse(activeLesson.content);
+                if (p && p.heroImage) lessonHeroImage = p.heroImage;
+              } catch {}
+            }
+
+            return (
               <div
                 style={{
-                  position: "absolute",
-                  inset: 0,
-                  opacity: 0.12,
-                  backgroundImage: `radial-gradient(circle at 25px 25px, #ffffff 2%, transparent 0%), linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)`,
-                  backgroundSize: "40px 40px, 40px 40px, 40px 40px",
-                  pointerEvents: "none",
-                }}
-              />
-
-              {/* Subtle animated server rack glow accent */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: "80%",
-                  height: 1,
-                  background: "linear-gradient(90deg, transparent, #049fd9, #58a03d, transparent)",
-                }}
-              />
-
-              {/* Floating Left Pill Navigator (<) */}
-              {prevLesson && (
-                <button
-                  onClick={() => setActiveLessonId(prevLesson.id)}
-                  title={`Previous: ${prevLesson.title}`}
-                  style={{
-                    position: "absolute",
-                    left: 14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 32,
-                    height: 60,
-                    borderRadius: "6px",
-                    background: "rgba(255,255,255,0.94)",
-                    border: "1.5px solid #58a03d",
-                    color: "#58a03d",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 15,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    fontWeight: 800,
-                    fontSize: "1.2rem",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  ‹
-                </button>
-              )}
-
-              {/* Centered Hero Heading */}
-              <div style={{ textAlign: "center", zIndex: 10, maxWidth: 800, padding: "0 1rem" }}>
-                <h2
-                  style={{
-                    fontSize: "clamp(1.75rem, 3.5vw, 2.65rem)",
-                    fontWeight: 800,
-                    margin: 0,
-                    letterSpacing: "-0.02em",
-                    lineHeight: 1.2,
-                    textShadow: "0 2px 10px rgba(0,0,0,0.35)",
-                  }}
-                >
-                  {activeLesson.title}
-                </h2>
-
-                <div
-                  style={{
-                    marginTop: "1.25rem",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    color: "#cbd5e1",
-                    fontSize: "0.9375rem",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span>Scroll to begin</span>
-                  <span style={{ fontSize: "1.1rem" }}>⬇</span>
-                </div>
-              </div>
-
-              {/* Floating XP Award Notification Chip */}
-              {recentXpGain && (
-                <div
-                  style={{
-                    position: "absolute",
-                    right: 98,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "#10b981",
-                    color: "#ffffff",
-                    padding: "0.45rem 0.85rem",
-                    borderRadius: "999px",
-                    fontWeight: 700,
-                    fontSize: "0.8125rem",
-                    boxShadow: "0 4px 14px rgba(16, 185, 129, 0.4)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    zIndex: 15,
-                  }}
-                >
-                  <span>✨</span>
-                  <span>+{recentXpGain} experience points</span>
-                </div>
-              )}
-
-              {/* Floating Right Shield Certification Badge with Circular Progress Ring */}
-              <div
-                style={{
-                  position: "absolute",
-                  right: 28,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: 62,
-                  height: 62,
+                  position: "relative",
+                  minHeight: "calc(100vh - 120px)",
+                  // When a hero image is set, use it as a full-cover background
+                  background: lessonHeroImage
+                    ? `url(${lessonHeroImage}) center center / cover no-repeat`
+                    : "linear-gradient(135deg, #011936 0%, #002c4b 45%, #005073 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  zIndex: 12,
+                  padding: "3.5rem 2rem",
+                  color: "#ffffff",
+                  overflow: "hidden",
                 }}
               >
-                {/* Circular Progress Ring */}
-                <svg width="62" height="62" style={{ position: "absolute", top: 0, left: 0, transform: "rotate(-90deg)" }}>
-                  <circle cx="31" cy="31" r="26" stroke="rgba(255,255,255,0.2)" strokeWidth="4" fill="none" />
-                  <circle
-                    cx="31"
-                    cy="31"
-                    r="26"
-                    stroke="#58a03d"
-                    strokeWidth="4"
-                    strokeDasharray={163.36}
-                    strokeDashoffset={
-                      163.36 - (163.36 * (currentSubLessons.length > 0 ? (currentSubLessons.filter((s) => completedSubLessons[s.id]).length / currentSubLessons.length) : 0))
-                    }
-                    strokeLinecap="round"
-                    fill="none"
-                    style={{ transition: "stroke-dashoffset 0.4s ease" }}
-                  />
-                </svg>
+                {/* Dark overlay — always present to ensure white text pops; deeper when image is set */}
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
-                    background: "#ffffff",
-                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 2,
+                    position: "absolute",
+                    inset: 0,
+                    background: lessonHeroImage
+                      ? "linear-gradient(135deg, rgba(1,25,54,0.72) 0%, rgba(0,44,75,0.60) 50%, rgba(0,80,115,0.55) 100%)"
+                      : "transparent",
+                    pointerEvents: "none",
+                    zIndex: 1,
                   }}
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#011936" strokeWidth="2.2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
-                </div>
-              </div>
+                />
 
-              {/* Floating Right Pill Navigator (>) */}
-              {nextLesson && (
-                <button
-                  onClick={() => setActiveLessonId(nextLesson.id)}
-                  title={`Next: ${nextLesson.title}`}
+                {/* High tech grid background pattern (shown only when no image) */}
+                {!lessonHeroImage && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      opacity: 0.12,
+                      backgroundImage: `radial-gradient(circle at 25px 25px, #ffffff 2%, transparent 0%), linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)`,
+                      backgroundSize: "40px 40px, 40px 40px, 40px 40px",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+
+                {/* Subtle bottom glow accent */}
+                <div
                   style={{
                     position: "absolute",
-                    right: 14,
+                    bottom: 0,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: "80%",
+                    height: 1,
+                    background: "linear-gradient(90deg, transparent, #049fd9, #58a03d, transparent)",
+                    zIndex: 2,
+                  }}
+                />
+
+                {/* Centered Hero Heading */}
+                <div style={{ textAlign: "center", zIndex: 10, maxWidth: 800, padding: "0 1rem", position: "relative" }}>
+                  <h2
+                    style={{
+                      fontSize: "clamp(1.75rem, 3.5vw, 2.65rem)",
+                      fontWeight: 800,
+                      margin: 0,
+                      letterSpacing: "-0.02em",
+                      lineHeight: 1.2,
+                      color: "#ffffff",
+                      textShadow: lessonHeroImage
+                        ? "0 2px 16px rgba(0,0,0,0.7), 0 1px 4px rgba(0,0,0,0.9)"
+                        : "0 2px 10px rgba(0,0,0,0.35)",
+                    }}
+                  >
+                    {activeLesson.title}
+                  </h2>
+
+                  <div
+                    style={{
+                      marginTop: "1.25rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      color: "#cbd5e1",
+                      fontSize: "0.9375rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span>Scroll to begin</span>
+                    <span style={{ fontSize: "1.1rem" }}>⬇</span>
+                  </div>
+                </div>
+
+                {/* Floating XP Award Notification Chip */}
+                {recentXpGain && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 98,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "#10b981",
+                      color: "#ffffff",
+                      padding: "0.45rem 0.85rem",
+                      borderRadius: "999px",
+                      fontWeight: 700,
+                      fontSize: "0.8125rem",
+                      boxShadow: "0 4px 14px rgba(16, 185, 129, 0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      zIndex: 15,
+                    }}
+                  >
+                    <span>✨</span>
+                    <span>+{recentXpGain} experience points</span>
+                  </div>
+                )}
+
+                {/* Floating Right Shield Certification Badge with Circular Progress Ring */}
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 28,
                     top: "50%",
                     transform: "translateY(-50%)",
-                    width: 32,
-                    height: 60,
-                    borderRadius: "6px",
-                    background: "rgba(255,255,255,0.94)",
-                    border: "1.5px solid #58a03d",
-                    color: "#58a03d",
+                    width: 62,
+                    height: 62,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 15,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    fontWeight: 800,
-                    fontSize: "1.2rem",
-                    transition: "all 0.15s ease",
+                    zIndex: 12,
                   }}
                 >
-                  ›
-                </button>
-              )}
-            </div>
-          )}
+                  {/* Circular Progress Ring */}
+                  <svg width="62" height="62" style={{ position: "absolute", top: 0, left: 0, transform: "rotate(-90deg)" }}>
+                    <circle cx="31" cy="31" r="26" stroke="rgba(255,255,255,0.2)" strokeWidth="4" fill="none" />
+                    <circle
+                      cx="31"
+                      cy="31"
+                      r="26"
+                      stroke="#58a03d"
+                      strokeWidth="4"
+                      strokeDasharray={163.36}
+                      strokeDashoffset={
+                        163.36 - (163.36 * (currentSubLessons.length > 0 ? (currentSubLessons.filter((s) => completedSubLessons[s.id]).length / currentSubLessons.length) : 0))
+                      }
+                      strokeLinecap="round"
+                      fill="none"
+                      style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                    />
+                  </svg>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      background: "#ffffff",
+                      boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 2,
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#011936" strokeWidth="2.2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
-          {/* ── LESSON BODY CONTAINER ── */}
+          {/* ── FIXED VIEWPORT LESSON NAVIGATION ARROWS ── */}
+          {prevLesson && (
+            <button
+              key={`prev-${prevLesson.id}`}
+              onClick={() => handleNavigateToLesson(prevLesson.id)}
+              title={`Previous: ${prevLesson.title}`}
+              style={{
+                position: "fixed",
+                left: sidebarOpen ? 364 : 1,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 32,
+                height: 60,
+                borderRadius: "2px",
+                background: "rgba(255,255,255,0.94)",
+                border: "1.5px solid #58a03d",
+                color: "#58a03d",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                zIndex: 50,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                fontWeight: 800,
+                fontSize: "1.2rem",
+                transition: "left 0.2s ease, background 0.15s ease",
+              }}
+            >
+              ‹
+            </button>
+          )}
+          {nextLesson && (
+            <button
+              key={`next-${nextLesson.id}`}
+              onClick={() => handleNavigateToLesson(nextLesson.id)}
+              title={`Next: ${nextLesson.title}`}
+              style={{
+                position: "fixed",
+                right: 1,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 32,
+                height: 60,
+                borderRadius: "2px",
+                background: "rgba(255,255,255,0.94)",
+                border: "1.5px solid #58a03d",
+                color: "#58a03d",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                zIndex: 50,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                fontWeight: 800,
+                fontSize: "1.2rem",
+                transition: "all 0.15s ease",
+              }}
+            >
+              ›
+            </button>
+          )}
           <div
             style={{
               padding: "2rem 1.5rem",
@@ -1766,9 +2056,8 @@ export default function LearnPlayerClient({
                 </div>
               )}
 
-              {/* ── SUB-LESSONS CONTINUOUS SCROLL VIEW (Cisco NetAcad Style) ── */}
-              {currentSubLessons.length > 1 || currentSubLessons.some((s) => s.cards || s.practiceQuiz || s.tabs) ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "2rem", marginBottom: "3rem" }}>
+              {/* ── SUB-LESSONS CONTINUOUS SCROLL VIEW (Multi-Type Sub-Lessons) ── */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem", marginBottom: "3.5rem" }}>
                   {currentSubLessons.map((sub) => {
                     const isSubActive = activeSubLessonId === sub.id;
                     const isCompleted = !!completedSubLessons[sub.id];
@@ -1845,24 +2134,40 @@ export default function LearnPlayerClient({
                                 <span>Read</span>
                               </span>
                             )}
-                            <span
-                              style={{
-                                fontSize: "0.75rem",
-                                fontWeight: 700,
-                                color: "#0369a1",
-                                background: "#e0f2fe",
-                                padding: "0.25rem 0.65rem",
-                                borderRadius: "6px",
-                              }}
-                            >
-                              {sub.type === "PRACTICE"
-                                ? "Interactive Practice"
-                                : sub.type === "CODING_EXERCISE"
-                                ? "Python Lab"
-                                : sub.type === "SQL_EXERCISE"
-                                ? "SQL Lab"
-                                : "Reading Guide"}
-                            </span>
+                            {(() => {
+                              const getBadge = (t: string) => {
+                                switch (t) {
+                                  case "CODING_EXERCISE": return { label: "Python Lab", icon: "🐍", color: "#166534", bg: "#dcfce7" };
+                                  case "SQL_EXERCISE": return { label: "SQL Lab", icon: "🗄️", color: "#c2410c", bg: "#ffedd5" };
+                                  case "QUIZ": return { label: "Concept Quiz", icon: "❓", color: "#7e22ce", bg: "#f3e8ff" };
+                                  case "VIDEO": case "VIDEO_READING": return { label: "Video Lecture", icon: "🎬", color: "#005073", bg: "rgba(0, 80, 115, 0.12)" };
+                                  case "PRACTICE": return { label: "Practice Item", icon: "📌", color: "#0284c7", bg: "#e0f2fe" };
+                                  case "DOWNLOADABLE": return { label: "Downloadable Asset", icon: "📦", color: "#0f766e", bg: "#ccfbf1" };
+                                  case "EXTERNAL_RESOURCE": return { label: "External Tool", icon: "🔗", color: "#475569", bg: "#f1f5f9" };
+                                  case "ASSIGNMENT": case "PROJECT": return { label: t === "PROJECT" ? "Capstone Project" : "Graded Assignment", icon: "🚀", color: "#b45309", bg: "#fef3c7" };
+                                  default: return { label: "Reading Guide", icon: "📖", color: "#0369a1", bg: "#e0f2fe" };
+                                }
+                              };
+                              const b = getBadge(sub.type);
+                              return (
+                                <span
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    fontWeight: 700,
+                                    color: b.color,
+                                    background: b.bg,
+                                    padding: "0.25rem 0.65rem",
+                                    borderRadius: "6px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.35rem",
+                                  }}
+                                >
+                                  <span>{b.icon}</span>
+                                  <span>{b.label}</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -1884,6 +2189,38 @@ export default function LearnPlayerClient({
                               alt={sub.title}
                               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                             />
+                          </div>
+                        )}
+
+                        {/* Video Player */}
+                        {(sub.type === "VIDEO" || sub.type === "VIDEO_READING" || sub.videoUrl) && getEmbedUrl(sub.videoUrl) && (
+                          <div
+                            style={{
+                              position: "relative",
+                              width: "100%",
+                              paddingTop: "56.25%",
+                              borderRadius: "12px",
+                              overflow: "hidden",
+                              background: "#000",
+                              marginBottom: "1.75rem",
+                              boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
+                            }}
+                          >
+                            {getEmbedUrl(sub.videoUrl)!.endsWith(".mp4") ? (
+                              <video
+                                src={getEmbedUrl(sub.videoUrl)!}
+                                controls
+                                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+                              />
+                            ) : (
+                              <iframe
+                                src={getEmbedUrl(sub.videoUrl)!}
+                                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title={sub.title}
+                              />
+                            )}
                           </div>
                         )}
 
@@ -2360,945 +2697,1470 @@ export default function LearnPlayerClient({
                             })()}
                           </div>
                         )}
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <>
-                  {/* ── 1. PYTHON CODING LAB VIEW ── */}
-                  {activeLesson.type === "CODING_EXERCISE" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Instructions */}
-                  <div
-                    style={{
-                      background: "#fff",
-                      borderRadius: "12px",
-                      border: "1px solid #e2e8f0",
-                      padding: "2rem",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-                      <span style={{ fontSize: "1.25rem" }}>🐍</span>
-                      <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                        Lab Problem Statement &amp; Requirements
-                      </h3>
-                    </div>
-                    <div
-                      style={{ fontSize: "0.9375rem", lineHeight: 1.8, color: "#334155", whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(parsedLesson?.instructions || activeLesson.content || "Write your solution below using the starter template."),
-                      }}
-                    />
-                  </div>
 
-                  {/* Interactive Code Editor Workspace */}
-                  <div style={{ background: "#0b132b", borderRadius: "12px", overflow: "hidden", border: "1px solid #1e293b", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1.25rem", background: "#060d1f", borderBottom: "1px solid #1e293b" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} />
-                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />
-                        </div>
-                        <span style={{ fontSize: "0.8125rem", color: "#94a3b8", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                          solution.py
-                        </span>
-                      </div>
+                        {/* 1. Sub-lesson Python Coding Lab */}
+                        {(sub.type === "CODING_EXERCISE" || sub.starterCode) && (
+                          <div style={{ marginTop: "1.75rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                            <div
+                              style={{
+                                background: "#0b132b",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                border: "1px solid #1e293b",
+                                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.75rem 1.25rem",
+                                  background: "#060d1f",
+                                  borderBottom: "1px solid #1e293b",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                                  <div style={{ display: "flex", gap: "6px" }}>
+                                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
+                                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} />
+                                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />
+                                  </div>
+                                  <span style={{ fontSize: "0.8125rem", color: "#94a3b8", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                                    solution.py
+                                  </span>
+                                </div>
 
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button
-                          type="button"
-                          onClick={handleCopyStarterCode}
-                          style={{
-                            padding: "0.3rem 0.65rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            color: "#94a3b8",
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {codeCopied ? "✓ Copied" : "Copy Code"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setStudentCode(parsedLesson?.starterCode || "")}
-                          style={{
-                            padding: "0.3rem 0.65rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            color: "#94a3b8",
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-
-                    <textarea
-                      rows={10}
-                      value={studentCode}
-                      onChange={(e) => setStudentCode(e.target.value)}
-                      placeholder="# Type your Python script here..."
-                      style={{
-                        width: "100%",
-                        padding: "1.25rem",
-                        fontFamily: "Consolas, Menlo, Monaco, monospace",
-                        fontSize: "0.875rem",
-                        lineHeight: 1.6,
-                        background: "#0b132b",
-                        color: "#67e8f9",
-                        border: "none",
-                        outline: "none",
-                        resize: "vertical",
-                      }}
-                    />
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1.25rem", background: "#060d1f", borderTop: "1px solid #1e293b" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Python 3.11 Kernel Ready</span>
-                      <button
-                        type="button"
-                        onClick={handleRunPythonCode}
-                        disabled={isRunningCode}
-                        style={{
-                          padding: "0.45rem 1.25rem",
-                          borderRadius: "6px",
-                          background: "#10b981",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.8125rem",
-                          border: "none",
-                          cursor: isRunningCode ? "not-allowed" : "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                        }}
-                      >
-                        <span>{isRunningCode ? "Running..." : "▶ Run Code"}</span>
-                      </button>
-                    </div>
-
-                    {/* Output Terminal Console */}
-                    {codeOutput && (
-                      <div style={{ background: "#020617", padding: "1rem 1.25rem", borderTop: "1px solid #1e293b", fontFamily: "monospace", fontSize: "0.8125rem", color: "#a7f3d0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                        {codeOutput}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Solution Hint Accordion */}
-                  {parsedLesson?.solutionHint && (
-                    <div style={{ background: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0", padding: "1rem 1.25rem" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowSolutionHint(!showSolutionHint)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          fontSize: "0.875rem",
-                          fontWeight: 700,
-                          color: "#0284c7",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                          padding: 0,
-                        }}
-                      >
-                        <span>💡</span>
-                        <span>{showSolutionHint ? "Hide Solution Hint" : "Need a hint? Reveal Solution Guide"}</span>
-                        <span>{showSolutionHint ? "▲" : "▼"}</span>
-                      </button>
-                      {showSolutionHint && (
-                        <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #f1f5f9", fontSize: "0.875rem", color: "#475569", lineHeight: 1.6 }}>
-                          {parsedLesson.solutionHint}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── 2. SQL QUERY LAB VIEW ── */}
-              {activeLesson.type === "SQL_EXERCISE" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Instructions */}
-                  <div
-                    style={{
-                      background: "#fff",
-                      borderRadius: "12px",
-                      border: "1px solid #e2e8f0",
-                      padding: "2rem",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-                      <span style={{ fontSize: "1.25rem" }}>🗄️</span>
-                      <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                        SQL Query Challenge
-                      </h3>
-                    </div>
-                    <div
-                      style={{ fontSize: "0.9375rem", lineHeight: 1.8, color: "#334155", whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(parsedLesson?.instructions || activeLesson.content || "Write the SQL query to solve the question."),
-                      }}
-                    />
-                  </div>
-
-                  {/* Schema Context Viewer */}
-                  {parsedLesson?.schemaContext && (
-                    <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "10px", padding: "1.25rem" }}>
-                      <h4 style={{ margin: "0 0 0.5rem", color: "#9a3412", fontSize: "0.875rem", fontWeight: 700 }}>
-                        📋 Database Schema &amp; Tables:
-                      </h4>
-                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8125rem", color: "#7c2d12", whiteSpace: "pre-wrap" }}>
-                        {parsedLesson.schemaContext}
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* Interactive SQL Console */}
-                  <div style={{ background: "#1c1917", borderRadius: "12px", overflow: "hidden", border: "1px solid #292524" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1.25rem", background: "#0c0a09", borderBottom: "1px solid #292524" }}>
-                      <span style={{ fontSize: "0.8125rem", color: "#a8a29e", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                        query.sql
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleExecuteSql}
-                        disabled={isRunningSql}
-                        style={{
-                          padding: "0.4rem 1.15rem",
-                          borderRadius: "6px",
-                          background: "#ea580c",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.8125rem",
-                          border: "none",
-                          cursor: isRunningSql ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {isRunningSql ? "Executing..." : "▶ Execute Query"}
-                      </button>
-                    </div>
-
-                    <textarea
-                      rows={6}
-                      value={studentSql}
-                      onChange={(e) => setStudentSql(e.target.value)}
-                      placeholder="SELECT * FROM table LIMIT 10;"
-                      style={{
-                        width: "100%",
-                        padding: "1rem 1.25rem",
-                        fontFamily: "Consolas, Menlo, Monaco, monospace",
-                        fontSize: "0.875rem",
-                        lineHeight: 1.6,
-                        background: "#1c1917",
-                        color: "#fdba74",
-                        border: "none",
-                        outline: "none",
-                        resize: "vertical",
-                      }}
-                    />
-
-                    {/* SQL Result Table */}
-                    {sqlResult && (
-                      <div style={{ background: "#0c0a09", padding: "1rem 1.25rem", borderTop: "1px solid #292524" }}>
-                        <div style={{ fontSize: "0.75rem", color: "#a8a29e", marginBottom: "0.5rem", fontWeight: 600 }}>
-                          Query Result ({sqlResult.length} rows returned in 24ms):
-                        </div>
-                        <div style={{ overflowX: "auto" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem", color: "#e7e5e4" }}>
-                            <thead>
-                              <tr style={{ borderBottom: "1px solid #44403c", textAlign: "left" }}>
-                                {Object.keys(sqlResult[0] || {}).map((k) => (
-                                  <th key={k} style={{ padding: "0.4rem 0.75rem", color: "#fed7aa", fontWeight: 700 }}>
-                                    {k}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sqlResult.map((row, rIdx) => (
-                                <tr key={rIdx} style={{ borderBottom: "1px solid #292524" }}>
-                                  {Object.values(row).map((v: any, vIdx) => (
-                                    <td key={vIdx} style={{ padding: "0.4rem 0.75rem" }}>
-                                      {v}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SQL Solution Hint */}
-                  {parsedLesson?.solutionHint && (
-                    <div style={{ background: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0", padding: "1rem 1.25rem" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowSqlHint(!showSqlHint)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          fontSize: "0.875rem",
-                          fontWeight: 700,
-                          color: "#c2410c",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                          padding: 0,
-                        }}
-                      >
-                        <span>💡</span>
-                        <span>{showSqlHint ? "Hide Query Hint" : "Reveal Query Solution Hint"}</span>
-                        <span>{showSqlHint ? "▲" : "▼"}</span>
-                      </button>
-                      {showSqlHint && (
-                        <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #f1f5f9", fontSize: "0.875rem", color: "#475569", lineHeight: 1.6 }}>
-                          {parsedLesson.solutionHint}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── 3. CONCEPT QUIZ VIEW ── */}
-              {activeLesson.type === "QUIZ" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Quiz Header & Score Banner */}
-                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "2rem", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ fontSize: "1.25rem" }}>❓</span>
-                        <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                          Concept Quiz
-                        </h3>
-                      </div>
-                      <span style={{ fontSize: "0.8125rem", fontWeight: 700, padding: "0.25rem 0.75rem", borderRadius: "9999px", background: "#f3e8ff", color: "#7e22ce" }}>
-                        Passing threshold: {parsedLesson?.passingScore || 70}%
-                      </span>
-                    </div>
-
-                    {parsedLesson?.instructions && (
-                      <div
-                        style={{ fontSize: "0.9375rem", color: "#475569", lineHeight: 1.7, marginBottom: "1.5rem" }}
-                        dangerouslySetInnerHTML={{ __html: formatLessonContent(parsedLesson.instructions) }}
-                      />
-                    )}
-
-                    {/* Result Banner if submitted */}
-                    {quizSubmitted && quizScore !== null && (
-                      <div
-                        style={{
-                          padding: "1rem 1.25rem",
-                          borderRadius: "8px",
-                          marginBottom: "1.5rem",
-                          background: quizScore >= (parsedLesson?.passingScore || 70) ? "#f0fdf4" : "#fef2f2",
-                          border: quizScore >= (parsedLesson?.passingScore || 70) ? "1px solid #bbf7d0" : "1px solid #fecaca",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: "0.75rem",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: "1rem", fontWeight: 700, color: quizScore >= (parsedLesson?.passingScore || 70) ? "#15803d" : "#b91c1c" }}>
-                            {quizScore >= (parsedLesson?.passingScore || 70)
-                              ? `🎉 Passed! You scored ${quizScore}%!`
-                              : `⚠️ You scored ${quizScore}%. Passing score is ${parsedLesson?.passingScore || 70}%.`}
-                          </div>
-                          <div style={{ fontSize: "0.8125rem", color: "#475569", marginTop: "0.2rem" }}>
-                            {quizScore >= (parsedLesson?.passingScore || 70)
-                              ? "Excellent mastery of the concepts covered in this module."
-                              : "Review the correct explanations below and retry to improve your score."}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setQuizSubmitted(false);
-                            setQuizScore(null);
-                            setQuizAnswers({});
-                          }}
-                          style={{
-                            padding: "0.4rem 0.85rem",
-                            fontSize: "0.8125rem",
-                            fontWeight: 700,
-                            borderRadius: "6px",
-                            border: "1px solid #cbd5e1",
-                            background: "#fff",
-                            color: "#334155",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Retake Quiz
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Questions */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                      {(parsedLesson?.questions || []).map((q: any, qIdx: number) => {
-                        const selectedIdx = quizAnswers[qIdx];
-                        const isCorrect = selectedIdx === q.correctIndex;
-                        return (
-                          <div
-                            key={q.id || qIdx}
-                            style={{
-                              padding: "1.25rem",
-                              borderRadius: "8px",
-                              border: quizSubmitted
-                                ? isCorrect
-                                  ? "1px solid #86efac"
-                                  : "1px solid #fca5a5"
-                                : "1px solid #e2e8f0",
-                              background: quizSubmitted ? (isCorrect ? "#f0fdf4" : "#fff5f5") : "#fafafa",
-                            }}
-                          >
-                            <h4 style={{ margin: "0 0 0.85rem", fontSize: "0.9375rem", fontWeight: 700, color: "#1e293b" }}>
-                              {qIdx + 1}. {q.question}
-                            </h4>
-
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                              {(q.options || []).map((opt: string, optIdx: number) => {
-                                const isSelected = selectedIdx === optIdx;
-                                const isTheRightAnswer = q.correctIndex === optIdx;
-                                return (
-                                  <label
-                                    key={optIdx}
+                                <div style={{ display: "flex", gap: "0.5rem" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopySubCode(sub.id, sub.starterCode || "")}
                                     style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "0.65rem",
-                                      padding: "0.65rem 0.85rem",
+                                      padding: "0.35rem 0.75rem",
+                                      background: "#1e293b",
+                                      color: "#cbd5e1",
+                                      border: "1px solid #334155",
                                       borderRadius: "6px",
-                                      background: quizSubmitted
-                                        ? isTheRightAnswer
-                                          ? "#dcfce7"
-                                          : isSelected
-                                          ? "#fee2e2"
-                                          : "#fff"
-                                        : isSelected
-                                        ? "#f3e8ff"
-                                        : "#fff",
-                                      border: isSelected ? "1px solid #c084fc" : "1px solid #e2e8f0",
-                                      cursor: quizSubmitted ? "default" : "pointer",
-                                      fontSize: "0.875rem",
-                                      color: "#1e293b",
+                                      fontSize: "0.75rem",
+                                      cursor: "pointer",
                                     }}
                                   >
-                                    <input
-                                      type="radio"
-                                      name={`question_${qIdx}`}
-                                      disabled={quizSubmitted}
-                                      checked={isSelected}
-                                      onChange={() =>
-                                        setQuizAnswers((prev) => ({
-                                          ...prev,
-                                          [qIdx]: optIdx,
-                                        }))
-                                      }
-                                      style={{ cursor: quizSubmitted ? "default" : "pointer" }}
-                                    />
-                                    <span style={{ fontWeight: 600, color: "#64748b" }}>
-                                      {String.fromCharCode(65 + optIdx)}.
-                                    </span>
-                                    <span style={{ flex: 1 }}>{opt}</span>
-                                    {quizSubmitted && isTheRightAnswer && (
-                                      <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#16a34a" }}>✓ Correct</span>
+                                    {subCodeCopied[sub.id] ? "✓ Copied" : "Copy Code"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSubStudentCode((prev) => ({ ...prev, [sub.id]: sub.starterCode || "" }))
+                                    }
+                                    style={{
+                                      padding: "0.35rem 0.75rem",
+                                      background: "#1e293b",
+                                      color: "#cbd5e1",
+                                      border: "1px solid #334155",
+                                      borderRadius: "6px",
+                                      fontSize: "0.75rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    ↺ Reset
+                                  </button>
+                                </div>
+                              </div>
+
+                              <textarea
+                                value={subStudentCode[sub.id] ?? sub.starterCode ?? ""}
+                                onChange={(e) =>
+                                  setSubStudentCode((prev) => ({ ...prev, [sub.id]: e.target.value }))
+                                }
+                                placeholder="# Write your Python solution code here..."
+                                rows={10}
+                                style={{
+                                  width: "100%",
+                                  background: "#0b132b",
+                                  color: "#f8fafc",
+                                  padding: "1.25rem",
+                                  fontFamily: "var(--font-mono, monospace)",
+                                  fontSize: "0.875rem",
+                                  lineHeight: 1.6,
+                                  border: "none",
+                                  outline: "none",
+                                  resize: "vertical",
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.75rem 1.25rem",
+                                  background: "#081026",
+                                  borderTop: "1px solid #1e293b",
+                                }}
+                              >
+                                {sub.solutionHint ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSubShowHint((prev) => ({ ...prev, [sub.id]: !prev[sub.id] }))
+                                    }
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      color: "#38bdf8",
+                                      fontSize: "0.8125rem",
+                                      cursor: "pointer",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    💡 {subShowHint[sub.id] ? "Hide Solution Hint" : "Need a Hint?"}
+                                  </button>
+                                ) : (
+                                  <div />
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRunSubPython(sub.id)}
+                                  disabled={subIsRunningCode[sub.id]}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
+                                    padding: "0.6rem 1.5rem",
+                                    borderRadius: "8px",
+                                    background: "#10b981",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                    fontSize: "0.875rem",
+                                    border: "none",
+                                    cursor: subIsRunningCode[sub.id] ? "not-allowed" : "pointer",
+                                    boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+                                  }}
+                                >
+                                  <span>{subIsRunningCode[sub.id] ? "⏳ Running..." : "▶ Run Solution"}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Solution Hint */}
+                            {subShowHint[sub.id] && sub.solutionHint && (
+                              <div
+                                style={{
+                                  padding: "1rem 1.25rem",
+                                  background: "#f0f9ff",
+                                  borderRadius: "8px",
+                                  border: "1px solid #bae6fd",
+                                  fontSize: "0.875rem",
+                                  color: "#0369a1",
+                                }}
+                              >
+                                <strong>💡 Solution Hint:</strong> {sub.solutionHint}
+                              </div>
+                            )}
+
+                            {/* Terminal Output */}
+                            {subCodeOutput[sub.id] && (
+                              <div
+                                style={{
+                                  background: "#020617",
+                                  borderRadius: "10px",
+                                  padding: "1.25rem",
+                                  border: "1px solid #1e293b",
+                                  color: "#4ade80",
+                                  fontFamily: "var(--font-mono, monospace)",
+                                  fontSize: "0.8125rem",
+                                  whiteSpace: "pre-wrap",
+                                }}
+                              >
+                                <div style={{ color: "#94a3b8", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
+                                  TERMINAL OUTPUT
+                                </div>
+                                {subCodeOutput[sub.id]}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 2. Sub-lesson SQL Query Lab */}
+                        {(sub.type === "SQL_EXERCISE" || sub.starterSql) && (
+                          <div style={{ marginTop: "1.75rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                            {sub.schemaContext && (
+                              <div
+                                style={{
+                                  background: "#f8fafc",
+                                  borderRadius: "10px",
+                                  border: "1px solid #e2e8f0",
+                                  padding: "1.25rem",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                                  <span>🗄️</span>
+                                  <h4 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a" }}>
+                                    Target Schema &amp; Tables
+                                  </h4>
+                                </div>
+                                <div
+                                  style={{
+                                    fontFamily: "var(--font-mono, monospace)",
+                                    fontSize: "0.8125rem",
+                                    color: "#475569",
+                                    whiteSpace: "pre-wrap",
+                                    lineHeight: 1.6,
+                                  }}
+                                >
+                                  {sub.schemaContext}
+                                </div>
+                              </div>
+                            )}
+
+                            <div
+                              style={{
+                                background: "#0f172a",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                border: "1px solid #1e293b",
+                                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.75rem 1.25rem",
+                                  background: "#090d16",
+                                  borderBottom: "1px solid #1e293b",
+                                }}
+                              >
+                                <span style={{ fontSize: "0.8125rem", color: "#94a3b8", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                                  query.sql
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSubStudentSql((prev) => ({ ...prev, [sub.id]: sub.starterSql || "" }))
+                                  }
+                                  style={{
+                                    padding: "0.35rem 0.75rem",
+                                    background: "#1e293b",
+                                    color: "#cbd5e1",
+                                    border: "1px solid #334155",
+                                    borderRadius: "6px",
+                                    fontSize: "0.75rem",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ↺ Reset Query
+                                </button>
+                              </div>
+
+                              <textarea
+                                value={subStudentSql[sub.id] ?? sub.starterSql ?? ""}
+                                onChange={(e) =>
+                                  setSubStudentSql((prev) => ({ ...prev, [sub.id]: e.target.value }))
+                                }
+                                placeholder="-- Write your SQL query here..."
+                                rows={8}
+                                style={{
+                                  width: "100%",
+                                  background: "#0f172a",
+                                  color: "#38bdf8",
+                                  padding: "1.25rem",
+                                  fontFamily: "var(--font-mono, monospace)",
+                                  fontSize: "0.875rem",
+                                  lineHeight: 1.6,
+                                  border: "none",
+                                  outline: "none",
+                                  resize: "vertical",
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.75rem 1.25rem",
+                                  background: "#090d16",
+                                  borderTop: "1px solid #1e293b",
+                                }}
+                              >
+                                {sub.solutionHint ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSubShowSqlHint((prev) => ({ ...prev, [sub.id]: !prev[sub.id] }))
+                                    }
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      color: "#38bdf8",
+                                      fontSize: "0.8125rem",
+                                      cursor: "pointer",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    💡 {subShowSqlHint[sub.id] ? "Hide SQL Hint" : "Show Query Hint"}
+                                  </button>
+                                ) : (
+                                  <div />
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteSubSql(sub.id)}
+                                  disabled={subIsRunningSql[sub.id]}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
+                                    padding: "0.6rem 1.5rem",
+                                    borderRadius: "8px",
+                                    background: "#0284c7",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                    fontSize: "0.875rem",
+                                    border: "none",
+                                    cursor: subIsRunningSql[sub.id] ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  <span>{subIsRunningSql[sub.id] ? "⏳ Querying Database..." : "⚡ Execute SQL Query"}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* SQL Hint */}
+                            {subShowSqlHint[sub.id] && sub.solutionHint && (
+                              <div
+                                style={{
+                                  padding: "1rem 1.25rem",
+                                  background: "#f0f9ff",
+                                  borderRadius: "8px",
+                                  border: "1px solid #bae6fd",
+                                  fontSize: "0.875rem",
+                                  color: "#0369a1",
+                                }}
+                              >
+                                <strong>💡 SQL Query Hint:</strong> {sub.solutionHint}
+                              </div>
+                            )}
+
+                            {/* SQL Result Table */}
+                            {subSqlResult[sub.id] && (
+                              <div
+                                style={{
+                                  background: "#fff",
+                                  borderRadius: "10px",
+                                  overflow: "hidden",
+                                  border: "1px solid #e2e8f0",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    padding: "0.75rem 1.25rem",
+                                    background: "#f8fafc",
+                                    borderBottom: "1px solid #e2e8f0",
+                                    fontSize: "0.8125rem",
+                                    fontWeight: 700,
+                                    color: "#16a34a",
+                                  }}
+                                >
+                                  ✓ Query executed successfully ({subSqlResult[sub.id]!.length} rows returned)
+                                </div>
+                                <div style={{ overflowX: "auto" }}>
+                                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                                    <thead>
+                                      <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                                        {Object.keys(subSqlResult[sub.id]![0] || {}).map((col) => (
+                                          <th
+                                            key={col}
+                                            style={{
+                                              padding: "0.65rem 1rem",
+                                              borderBottom: "1px solid #cbd5e1",
+                                              color: "#334155",
+                                              fontWeight: 700,
+                                            }}
+                                          >
+                                            {col}
+                                          </th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {subSqlResult[sub.id]!.map((row, rIdx) => (
+                                        <tr key={rIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                          {Object.values(row).map((val: any, cIdx) => (
+                                            <td key={cIdx} style={{ padding: "0.65rem 1rem", color: "#0f172a" }}>
+                                              {String(val)}
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 3. Sub-lesson Concept Quiz */}
+                        {(sub.type === "QUIZ" || (sub.quizQuestions && sub.quizQuestions.length > 0)) && (
+                          <div
+                            style={{
+                              marginTop: "1.75rem",
+                              background: "#fbfcfe",
+                              borderRadius: "12px",
+                              border: "1px solid #e2e8f0",
+                              padding: "2rem",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: "1.5rem",
+                                flexWrap: "wrap",
+                                gap: "0.75rem",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <span style={{ fontSize: "1.25rem" }}>❓</span>
+                                <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
+                                  Concept Assessment &amp; Knowledge Check
+                                </h3>
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: "0.8125rem",
+                                  fontWeight: 700,
+                                  color: "#7e22ce",
+                                  background: "#f3e8ff",
+                                  padding: "0.25rem 0.75rem",
+                                  borderRadius: "9999px",
+                                }}
+                              >
+                                Passing Score: {sub.passingScore || 70}%
+                              </span>
+                            </div>
+
+                            {/* Score Banner if submitted */}
+                            {subQuizSubmitted[sub.id] && subQuizScore[sub.id] !== null && (
+                              <div
+                                style={{
+                                  marginBottom: "1.5rem",
+                                  padding: "1.25rem",
+                                  borderRadius: "10px",
+                                  background: (subQuizScore[sub.id] ?? 0) >= (sub.passingScore || 70) ? "#f0fdf4" : "#fef2f2",
+                                  border: `1.5px solid ${(subQuizScore[sub.id] ?? 0) >= (sub.passingScore || 70) ? "#86efac" : "#fca5a5"}`,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                  gap: "0.75rem",
+                                }}
+                              >
+                                <div>
+                                  <h4
+                                    style={{
+                                      margin: "0 0 0.25rem",
+                                      color: (subQuizScore[sub.id] ?? 0) >= (sub.passingScore || 70) ? "#166534" : "#991b1b",
+                                      fontSize: "1rem",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {(subQuizScore[sub.id] ?? 0) >= (sub.passingScore || 70)
+                                      ? `🎉 Assessment Passed: ${subQuizScore[sub.id]}%`
+                                      : `Review Needed: ${subQuizScore[sub.id]}%`}
+                                  </h4>
+                                  <p style={{ margin: 0, fontSize: "0.875rem", color: "#475569" }}>
+                                    {(subQuizScore[sub.id] ?? 0) >= (sub.passingScore || 70)
+                                      ? "Great mastery! You have met the benchmark for this section."
+                                      : "Review the question explanations below and retake the quiz to improve your score."}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSubQuizAnswers((prev) => ({ ...prev, [sub.id]: {} }));
+                                    setSubQuizSubmitted((prev) => ({ ...prev, [sub.id]: false }));
+                                    setSubQuizScore((prev) => ({ ...prev, [sub.id]: null }));
+                                  }}
+                                  style={{
+                                    padding: "0.5rem 1rem",
+                                    borderRadius: "6px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "#fff",
+                                    color: "#0f172a",
+                                    fontWeight: 700,
+                                    fontSize: "0.8125rem",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ↺ Retake Quiz
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Questions */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                              {(sub.quizQuestions || []).map((q, qIdx) => {
+                                const selected = subQuizAnswers[sub.id]?.[qIdx];
+                                const isSubmitted = subQuizSubmitted[sub.id];
+                                const isCorrect = selected === q.correctIndex;
+
+                                return (
+                                  <div
+                                    key={qIdx}
+                                    style={{
+                                      background: "#fff",
+                                      borderRadius: "10px",
+                                      border: "1px solid #e2e8f0",
+                                      padding: "1.25rem 1.5rem",
+                                    }}
+                                  >
+                                    <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem" }}>
+                                      {qIdx + 1}. {q.prompt || q.question}
+                                    </div>
+
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                                      {q.options.map((opt, oIdx) => {
+                                        const isChecked = selected === oIdx;
+                                        let optBorder = "#e2e8f0";
+                                        let optBg = "#fff";
+                                        if (isSubmitted) {
+                                          if (oIdx === q.correctIndex) {
+                                            optBorder = "#86efac";
+                                            optBg = "#f0fdf4";
+                                          } else if (isChecked && !isCorrect) {
+                                            optBorder = "#fca5a5";
+                                            optBg = "#fef2f2";
+                                          }
+                                        } else if (isChecked) {
+                                          optBorder = "#0284c7";
+                                          optBg = "#f0f9ff";
+                                        }
+
+                                        return (
+                                          <label
+                                            key={oIdx}
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              gap: "0.75rem",
+                                              padding: "0.65rem 1rem",
+                                              borderRadius: "8px",
+                                              border: `1.5px solid ${optBorder}`,
+                                              background: optBg,
+                                              cursor: isSubmitted ? "default" : "pointer",
+                                              fontSize: "0.875rem",
+                                              color: "#1e293b",
+                                            }}
+                                          >
+                                            <input
+                                              type="radio"
+                                              name={`quiz-${sub.id}-${qIdx}`}
+                                              checked={isChecked}
+                                              disabled={isSubmitted}
+                                              onChange={() =>
+                                                setSubQuizAnswers((prev) => ({
+                                                  ...prev,
+                                                  [sub.id]: { ...(prev[sub.id] || {}), [qIdx]: oIdx },
+                                                }))
+                                              }
+                                              style={{ cursor: "pointer" }}
+                                            />
+                                            <span>{opt}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {isSubmitted && q.explanation && (
+                                      <div
+                                        style={{
+                                          marginTop: "1rem",
+                                          padding: "0.75rem 1rem",
+                                          background: isCorrect ? "#f0fdf4" : "#fffbeb",
+                                          border: `1px solid ${isCorrect ? "#bbf7d0" : "#fef08a"}`,
+                                          borderRadius: "6px",
+                                          fontSize: "0.8125rem",
+                                          color: isCorrect ? "#166534" : "#854d0e",
+                                        }}
+                                      >
+                                        <strong>Explanation:</strong> {q.explanation}
+                                      </div>
                                     )}
-                                  </label>
+                                  </div>
                                 );
                               })}
                             </div>
 
-                            {quizSubmitted && q.explanation && (
-                              <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: "0.8125rem", color: "#475569" }}>
-                                <strong>Explanation:</strong> {q.explanation}
+                            {!subQuizSubmitted[sub.id] && (
+                              <div style={{ marginTop: "1.75rem", display: "flex", justifyContent: "flex-end" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSubmitSubQuiz(sub.id, sub.quizQuestions, sub.passingScore)}
+                                  disabled={
+                                    Object.keys(subQuizAnswers[sub.id] || {}).length < (sub.quizQuestions || []).length
+                                  }
+                                  style={{
+                                    padding: "0.75rem 1.75rem",
+                                    borderRadius: "8px",
+                                    background:
+                                      Object.keys(subQuizAnswers[sub.id] || {}).length === (sub.quizQuestions || []).length
+                                        ? "#7e22ce"
+                                        : "#cbd5e1",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                    fontSize: "0.875rem",
+                                    border: "none",
+                                    cursor:
+                                      Object.keys(subQuizAnswers[sub.id] || {}).length === (sub.quizQuestions || []).length
+                                        ? "pointer"
+                                        : "not-allowed",
+                                    boxShadow:
+                                      Object.keys(subQuizAnswers[sub.id] || {}).length === (sub.quizQuestions || []).length
+                                        ? "0 4px 12px rgba(126, 34, 206, 0.3)"
+                                        : "none",
+                                  }}
+                                >
+                                  Submit Quiz Answers
+                                </button>
                               </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                        )}
 
-                    {!quizSubmitted && (parsedLesson?.questions?.length || 0) > 0 && (
-                      <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "flex-end" }}>
-                        <button
-                          type="button"
-                          onClick={handleSubmitQuiz}
-                          style={{
-                            padding: "0.65rem 1.75rem",
-                            borderRadius: "9999px",
-                            background: "#7e22ce",
-                            color: "#fff",
-                            fontWeight: 700,
-                            fontSize: "0.9375rem",
-                            border: "none",
-                            cursor: "pointer",
-                            boxShadow: "0 4px 12px rgba(126, 34, 206, 0.3)",
-                          }}
-                        >
-                          Submit Quiz Answers
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── 4. DOWNLOADABLE ASSET VIEW ── */}
-              {activeLesson.type === "DOWNLOADABLE" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Hero Download Card */}
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-                      borderRadius: "12px",
-                      border: "1px solid #bfdbfe",
-                      padding: "2rem",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: "1.5rem",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: "12px",
-                          background: "#fff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.75rem",
-                          boxShadow: "0 4px 12px rgba(2, 132, 199, 0.15)",
-                        }}
-                      >
-                        📦
-                      </div>
-                      <div>
-                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          {parsedLesson?.fileType || "Course File Asset"}
-                        </span>
-                        <h3 style={{ margin: "0.2rem 0", fontSize: "1.125rem", fontWeight: 800, color: "#1e3a8a" }}>
-                          {parsedLesson?.fileName || activeLesson.title}
-                        </h3>
-                        <span style={{ fontSize: "0.8125rem", color: "#3b82f6" }}>
-                          Download and open in your local environment or Jupyter notebook
-                        </span>
-                      </div>
-                    </div>
-
-                    {parsedLesson?.downloadUrl && (
-                      <a
-                        href={parsedLesson.downloadUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.5rem",
-                          borderRadius: "9999px",
-                          background: "#0284c7",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.9375rem",
-                          textDecoration: "none",
-                          boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
-                        }}
-                      >
-                        <span>📥</span>
-                        <span>Download Asset</span>
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Usage Guide */}
-                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "2rem" }}>
-                    <h4 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
-                      Dataset Description &amp; Instructions:
-                    </h4>
-                    <div
-                      style={{ fontSize: "0.9375rem", color: "#334155", lineHeight: 1.8, whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(parsedLesson?.instructions || activeLesson.content || "Download the file above and inspect its contents to follow the exercise."),
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* ── 5. EXTERNAL RESOURCE VIEW ── */}
-              {activeLesson.type === "EXTERNAL_RESOURCE" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Hero Launch Card */}
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)",
-                      borderRadius: "12px",
-                      border: "1px solid #99f6e4",
-                      padding: "2rem",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: "1.5rem",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: "12px",
-                          background: "#fff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.75rem",
-                          boxShadow: "0 4px 12px rgba(15, 118, 110, 0.15)",
-                        }}
-                      >
-                        🌐
-                      </div>
-                      <div>
-                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#0f766e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          {parsedLesson?.provider || "External Platform"}
-                        </span>
-                        <h3 style={{ margin: "0.2rem 0", fontSize: "1.125rem", fontWeight: 800, color: "#115e59" }}>
-                          {activeLesson.title}
-                        </h3>
-                        <span style={{ fontSize: "0.8125rem", color: "#0d9488" }}>
-                          Interactive workspace hosted on an external environment
-                        </span>
-                      </div>
-                    </div>
-
-                    {parsedLesson?.externalUrl && (
-                      <a
-                        href={parsedLesson.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.5rem",
-                          borderRadius: "9999px",
-                          background: "#0f766e",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.9375rem",
-                          textDecoration: "none",
-                          boxShadow: "0 4px 12px rgba(15, 118, 110, 0.3)",
-                        }}
-                      >
-                        <span>Launch in {parsedLesson.provider || "Browser"}</span>
-                        <span>↗</span>
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Guided Instructions */}
-                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "2rem" }}>
-                    <h4 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
-                      Guided Activity Instructions:
-                    </h4>
-                    <div
-                      style={{ fontSize: "0.9375rem", color: "#334155", lineHeight: 1.8, whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(parsedLesson?.instructions || activeLesson.content || "Click the button above to launch the external resource, complete the steps, and return to mark this lesson complete."),
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* ── 6. ASSIGNMENT & PRACTICAL PROJECT VIEW ── */}
-              {(activeLesson.type === "ASSIGNMENT" || activeLesson.type === "PROJECT") && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginBottom: "2.5rem" }}>
-                  {/* Brief & Scenario */}
-                  <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", padding: "2rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ fontSize: "1.25rem" }}>{activeLesson.type === "PROJECT" ? "🚀" : "📝"}</span>
-                        <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                          {activeLesson.type === "PROJECT" ? "Capstone Project Brief" : "Assignment Guidelines"}
-                        </h3>
-                      </div>
-                      <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "0.25rem 0.75rem", borderRadius: "9999px" }}>
-                        Max Score: {parsedLesson?.maxScore || 100} Pts
-                      </span>
-                    </div>
-
-                    <div
-                      style={{ fontSize: "0.9375rem", color: "#334155", lineHeight: 1.8, whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(parsedLesson?.instructions || activeLesson.content || "Review the requirements and complete the deliverables specified."),
-                      }}
-                    />
-
-                    {parsedLesson?.starterRepoUrl && (
-                      <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #f1f5f9" }}>
-                        <a
-                          href={parsedLesson.starterRepoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "0.4rem",
-                            fontSize: "0.875rem",
-                            fontWeight: 700,
-                            color: "#0284c7",
-                            textDecoration: "none",
-                          }}
-                        >
-                          <span>📁 Clone Starter GitHub Repository</span>
-                          <span>↗</span>
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Deliverables Checklist */}
-                  {parsedLesson?.deliverables && (
-                    <div style={{ background: "#fffbeb", border: "1px solid #fef3c7", borderRadius: "12px", padding: "1.5rem" }}>
-                      <h4 style={{ margin: "0 0 0.85rem", color: "#92400e", fontSize: "0.9375rem", fontWeight: 700 }}>
-                        📋 Deliverables Checklist:
-                      </h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {parsedLesson.deliverables.split("\n").filter(Boolean).map((line: string, lIdx: number) => (
-                          <label
-                            key={lIdx}
+                        {/* 4. Sub-lesson Downloadable Asset */}
+                        {(sub.type === "DOWNLOADABLE" || sub.downloadUrl) && (
+                          <div
                             style={{
+                              marginTop: "1.75rem",
+                              background: "#f0fdfa",
+                              borderRadius: "12px",
+                              border: "1.5px solid #99f6e4",
+                              padding: "1.75rem",
                               display: "flex",
-                              alignItems: "flex-start",
-                              gap: "0.6rem",
-                              fontSize: "0.875rem",
-                              color: "#78350f",
-                              cursor: "pointer",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              flexWrap: "wrap",
+                              gap: "1rem",
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={!!checkedDeliverables[lIdx]}
-                              onChange={() => handleToggleDeliverable(lIdx)}
-                              style={{ marginTop: "0.2rem" }}
-                            />
-                            <span style={{ textDecoration: checkedDeliverables[lIdx] ? "line-through" : "none", opacity: checkedDeliverables[lIdx] ? 0.6 : 1 }}>
-                              {line}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                              <div
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  borderRadius: "10px",
+                                  background: "#ccfbf1",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "1.5rem",
+                                }}
+                              >
+                                📦
+                              </div>
+                              <div>
+                                <h4 style={{ margin: "0 0 0.25rem", fontSize: "1rem", fontWeight: 700, color: "#134e4a" }}>
+                                  {sub.fileName || "Course Downloadable Resource"}
+                                </h4>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                  <span
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      fontWeight: 700,
+                                      background: "#ccfbf1",
+                                      color: "#0f766e",
+                                      padding: "0.15rem 0.5rem",
+                                      borderRadius: "4px",
+                                    }}
+                                  >
+                                    {sub.fileType || "ZIP"}
+                                  </span>
+                                  <span style={{ fontSize: "0.8125rem", color: "#115e59" }}>
+                                    Ready for offline practice &amp; local execution
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
 
-                  {/* Submission Box */}
-                  <form onSubmit={handleSubmitProject} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1.5rem" }}>
-                    <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a" }}>
-                      Submit Your Work:
-                    </h4>
-                    <p style={{ margin: "0 0 0.75rem", fontSize: "0.8125rem", color: "#64748b" }}>
-                      Provide the GitHub repository URL, hosted demo link, or Google Colab notebook URL.
-                    </p>
-                    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://github.com/your-username/project-repo"
-                        value={submissionUrl}
-                        onChange={(e) => setSubmissionUrl(e.target.value)}
-                        className="input"
-                        style={{ flex: 1, minWidth: 240, padding: "0.6rem 0.85rem", fontSize: "0.875rem" }}
-                      />
-                      <button
-                        type="submit"
-                        style={{
-                          padding: "0.6rem 1.5rem",
-                          borderRadius: "6px",
-                          background: submittedProject ? "#10b981" : "#0284c7",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.875rem",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {submittedProject ? "✓ Submitted" : "Submit Work"}
-                      </button>
-                    </div>
-                    {submittedProject && (
-                      <div style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "#16a34a", fontWeight: 600 }}>
-                        ✓ Work received and marked as complete! Your tutor will review and assign feedback.
-                      </div>
-                    )}
-                  </form>
-                </div>
-              )}
+                            <a
+                              href={sub.downloadUrl || "#"}
+                              download={sub.fileName}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                padding: "0.65rem 1.5rem",
+                                borderRadius: "8px",
+                                background: "#0f766e",
+                                color: "#fff",
+                                fontWeight: 700,
+                                fontSize: "0.875rem",
+                                textDecoration: "none",
+                                boxShadow: "0 4px 12px rgba(15, 118, 110, 0.25)",
+                              }}
+                            >
+                              <span>⬇ Download Asset</span>
+                            </a>
+                          </div>
+                        )}
 
-              {/* ── 7. STANDARD READING / LECTURE NOTES VIEW ── */}
-              {(activeLesson.type === "READING" || activeLesson.type === "VIDEO" || activeLesson.type === "VIDEO_READING") && (
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: "12px",
-                    border: "1px solid #e2e8f0",
-                    padding: "2rem 2.5rem",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                    fontSize: "1rem",
-                    lineHeight: 1.8,
-                    color: "#334155",
-                    marginBottom: "2.5rem",
-                  }}
-                >
-                  {activeLesson.content ? (
-                    <div
-                      style={{ whiteSpace: "pre-wrap" }}
-                      dangerouslySetInnerHTML={{
-                        __html: formatLessonContent(activeLesson.content),
-                      }}
-                    />
-                  ) : (
-                    <p style={{ color: "#64748b", fontStyle: "italic" }}>
-                      This lesson contains video or instructional materials. Review the lesson above and click
-                      &quot;Mark as Complete &amp; Continue&quot; once finished.
-                    </p>
-                  )}
-
-                  {/* Lesson Resources / Downloads */}
-                  {activeLesson.resources && activeLesson.resources.length > 0 && (
-                    <div style={{ marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid #e2e8f0" }}>
-                      <h4 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginBottom: "0.75rem" }}>
-                        Lesson Resources &amp; Downloads:
-                      </h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {activeLesson.resources.map((res) => (
-                          <a
-                            key={res.id}
-                            href={res.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {/* 5. Sub-lesson External Resource */}
+                        {(sub.type === "EXTERNAL_RESOURCE" || sub.externalUrl) && (
+                          <div
                             style={{
+                              marginTop: "1.75rem",
+                              background: "#f8fafc",
+                              borderRadius: "12px",
+                              border: "1.5px solid #cbd5e1",
+                              padding: "1.75rem",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              flexWrap: "wrap",
+                              gap: "1rem",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                              <div
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  borderRadius: "10px",
+                                  background: "#e2e8f0",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "1.5rem",
+                                }}
+                              >
+                                🔗
+                              </div>
+                              <div>
+                                <h4 style={{ margin: "0 0 0.25rem", fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                                  {sub.provider || "External Tool & Sandbox"}
+                                </h4>
+                                <div style={{ fontSize: "0.8125rem", color: "#64748b" }}>
+                                  {sub.externalUrl}
+                                </div>
+                              </div>
+                            </div>
+
+                            <a
+                              href={sub.externalUrl || "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                padding: "0.65rem 1.5rem",
+                                borderRadius: "8px",
+                                background: "#0284c7",
+                                color: "#fff",
+                                fontWeight: 700,
+                                fontSize: "0.875rem",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <span>Launch Tool ↗</span>
+                            </a>
+                          </div>
+                        )}
+
+                        {/* 6. Sub-lesson Capstone Project / Deliverables */}
+                        {(sub.type === "ASSIGNMENT" || sub.type === "PROJECT" || (sub.deliverables && sub.deliverables.length > 0)) && (
+                          <div
+                            style={{
+                              marginTop: "1.75rem",
+                              background: "#fffbeb",
+                              borderRadius: "12px",
+                              border: "1.5px solid #fde68a",
+                              padding: "2rem",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: "1.25rem",
+                                flexWrap: "wrap",
+                                gap: "0.75rem",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <span style={{ fontSize: "1.25rem" }}>🚀</span>
+                                <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#78350f" }}>
+                                  Milestone Deliverables &amp; Capstone Submission
+                                </h3>
+                              </div>
+                              {sub.maxScore && (
+                                <span
+                                  style={{
+                                    fontSize: "0.8125rem",
+                                    fontWeight: 700,
+                                    color: "#b45309",
+                                    background: "#fef3c7",
+                                    padding: "0.25rem 0.75rem",
+                                    borderRadius: "9999px",
+                                  }}
+                                >
+                                  Max Score: {sub.maxScore} pts
+                                </span>
+                              )}
+                            </div>
+
+                            {sub.starterRepoUrl && (
+                              <div style={{ marginBottom: "1.25rem" }}>
+                                <a
+                                  href={sub.starterRepoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
+                                    fontSize: "0.875rem",
+                                    color: "#0284c7",
+                                    fontWeight: 700,
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  <span>🐙 Open Starter Repository on GitHub ↗</span>
+                                </a>
+                              </div>
+                            )}
+
+                            {(() => {
+                              const delivList = Array.isArray(sub.deliverables)
+                                ? sub.deliverables
+                                : typeof sub.deliverables === "string"
+                                ? [sub.deliverables]
+                                : [];
+                              if (delivList.length === 0) return null;
+                              return (
+                                <div style={{ marginBottom: "1.5rem" }}>
+                                  <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem", fontWeight: 700, color: "#92400e" }}>
+                                    Required Deliverables Checklist:
+                                  </h4>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                                    {delivList.map((deliv: string, dIdx: number) => {
+                                    const isDelivChecked = !!subDeliverables[sub.id]?.[dIdx];
+                                    return (
+                                      <label
+                                        key={dIdx}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "0.75rem",
+                                          background: "#fff",
+                                          padding: "0.65rem 1rem",
+                                          borderRadius: "8px",
+                                          border: "1px solid #fde68a",
+                                          cursor: "pointer",
+                                          fontSize: "0.875rem",
+                                          color: "#334155",
+                                        }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isDelivChecked}
+                                          onChange={(e) =>
+                                            setSubDeliverables((prev) => ({
+                                              ...prev,
+                                              [sub.id]: {
+                                                ...(prev[sub.id] || {}),
+                                                [dIdx]: e.target.checked,
+                                              },
+                                            }))
+                                          }
+                                        />
+                                        <span style={{ textDecoration: isDelivChecked ? "line-through" : "none" }}>
+                                          {deliv}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            <form onSubmit={(e) => handleSubmitSubProject(sub.id, e)}>
+                              <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "#92400e", marginBottom: "0.5rem" }}>
+                                Submit Your Repository or Google Drive Link:
+                              </label>
+                              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                                <input
+                                  type="url"
+                                  required
+                                  placeholder="https://github.com/your-username/my-capstone-project"
+                                  value={subSubmissionUrl[sub.id] || ""}
+                                  onChange={(e) =>
+                                    setSubSubmissionUrl((prev) => ({ ...prev, [sub.id]: e.target.value }))
+                                  }
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 260,
+                                    padding: "0.65rem 1rem",
+                                    borderRadius: "8px",
+                                    border: "1.5px solid #fde68a",
+                                    background: "#fff",
+                                    fontSize: "0.875rem",
+                                    outline: "none",
+                                  }}
+                                />
+                                <button
+                                  type="submit"
+                                  style={{
+                                    padding: "0.65rem 1.5rem",
+                                    borderRadius: "8px",
+                                    background: subSubmittedProject[sub.id] ? "#10b981" : "#b45309",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                    fontSize: "0.875rem",
+                                    border: "none",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {subSubmittedProject[sub.id] ? "✓ Submitted" : "Submit Work"}
+                                </button>
+                              </div>
+                              {subSubmittedProject[sub.id] && (
+                                <p style={{ margin: "0.75rem 0 0", fontSize: "0.8125rem", color: "#16a34a", fontWeight: 700 }}>
+                                  ✓ Submission recorded! Your instructor will review your deliverables.
+                                </p>
+                              )}
+                            </form>
+                          </div>
+                        )}
+
+                        {/* Section Completion Bar */}
+                        <div
+                          style={{
+                            marginTop: "2rem",
+                            paddingTop: "1.25rem",
+                            borderTop: "1px dashed #e2e8f0",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.8125rem", color: "#64748b" }}>
+                            Section {sub.sectionNumber}: {sub.title}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCompletedSubLessons((prev) => ({
+                                ...prev,
+                                [sub.id]: !prev[sub.id],
+                              }))
+                            }
+                            style={{
+                              padding: "0.4rem 0.9rem",
+                              borderRadius: "6px",
+                              border: isCompleted ? "1px solid #86efac" : "1px solid #cbd5e1",
+                              background: isCompleted ? "#f0fdf4" : "#fff",
+                              color: isCompleted ? "#16a34a" : "#475569",
+                              fontSize: "0.8125rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
                               display: "inline-flex",
                               alignItems: "center",
-                              gap: "0.5rem",
-                              fontSize: "0.875rem",
-                              color: "#0284c7",
-                              textDecoration: "none",
-                              fontWeight: 600,
+                              gap: "0.35rem",
                             }}
                           >
-                            <span>📁</span>
-                            <span>{res.title}</span>
-                            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>↗</span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
+                            <span>{isCompleted ? "✓ Completed" : "○ Mark as Completed"}</span>
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                  {currentSubLessons.length === 0 && (
+                    <article
+                      style={{
+                        background: "#fff",
+                        borderRadius: "14px",
+                        border: "1px solid #e2e8f0",
+                        padding: "2.25rem 2.5rem",
+                        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.02)",
+                      }}
+                    >
+                      <div
+                        style={{ fontSize: "1.025rem", lineHeight: 1.85, color: "#334155" }}
+                        dangerouslySetInnerHTML={{
+                          __html: formatLessonContent(activeLesson?.content || "Lesson content coming soon."),
+                        }}
+                      />
+                    </article>
                   )}
                 </div>
-              )}
-                </>
-              )}
-
               {/* ACTION FOOTER */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "1.5rem 0",
-                  borderTop: "1px solid #e2e8f0",
-                  gap: "1rem",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
+              <div style={{ marginTop: "3rem", paddingBottom: "2rem" }}>
+                {/* ── LESSON COMPLETION BADGE & TOGGLE ── */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingBottom: "1.75rem",
+                    flexWrap: "wrap",
+                    gap: "1rem",
+                  }}
+                >
                   <button
+                    type="button"
                     onClick={() => handleToggleComplete(!isLessonComplete)}
                     disabled={updating}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "0.6rem",
-                      padding: "0.8rem 1.75rem",
+                      padding: "0.65rem 1.4rem",
                       borderRadius: "9999px",
-                      background: isLessonComplete ? "#10b981" : "#0284c7",
+                      background: isLessonComplete ? "var(--brand-accent-500)" : "var(--brand-navy-800)",
                       color: "#fff",
-                      fontSize: "0.9375rem",
+                      fontSize: "0.875rem",
                       fontWeight: 700,
                       border: "none",
                       cursor: updating ? "not-allowed" : "pointer",
                       boxShadow: isLessonComplete
-                        ? "0 4px 12px rgba(16, 185, 129, 0.3)"
-                        : "0 4px 12px rgba(2, 132, 199, 0.3)",
+                        ? "0 4px 12px rgba(0, 111, 168, 0.35)"
+                        : "0 4px 12px rgba(0, 51, 102, 0.25)",
                       transition: "all 0.2s ease",
                     }}
                   >
-                    <span>{isLessonComplete ? "✓ Completed" : "Mark as Complete & Next"}</span>
-                    <span>→</span>
+                    <span>{isLessonComplete ? "✓ Lesson Completed" : "○ Mark as Complete"}</span>
                   </button>
+
+                  <span style={{ fontSize: "0.8125rem", color: "#64748b" }}>
+                    {completedCount} of {totalLessons} lessons completed ({progressPercent}%)
+                  </span>
                 </div>
 
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  {prevLesson && (
-                    <button
-                      onClick={() => setActiveLessonId(prevLesson.id)}
+                {/* ── WAS THIS HELPFUL? FEEDBACK CARD (Exact Match to Design) ── */}
+                <div
+                  style={{
+                    background: readerTheme === "dark" ? "#1e293b" : "#f9f6f0",
+                    border: readerTheme === "dark" ? "1px solid #334155" : "1px solid #ede8de",
+                    borderRadius: "16px",
+                    padding: "1.5rem 2rem",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                    marginBottom: "2rem",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span
                       style={{
-                        padding: "0.65rem 1.25rem",
-                        borderRadius: "8px",
-                        border: "1px solid #cbd5e1",
-                        background: "#fff",
-                        color: "#334155",
+                        fontFamily: "Georgia, Cambria, 'Times New Roman', serif",
+                        fontSize: "1.2rem",
                         fontWeight: 600,
-                        fontSize: "0.875rem",
-                        cursor: "pointer",
+                        color: readerTheme === "dark" ? "#f8fafc" : "#18181b",
+                        letterSpacing: "-0.01em",
                       }}
                     >
-                      ← Previous
-                    </button>
+                      Was this helpful?
+                    </span>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      {/* Thumbs Up Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRating("helpful")}
+                        title="Yes, this was helpful"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background: currentFeedback.rating === "helpful" ? "#000000" : (readerTheme === "dark" ? "#0f172a" : "#ffffff"),
+                          color: currentFeedback.rating === "helpful" ? "#ffffff" : (readerTheme === "dark" ? "#cbd5e1" : "#52525b"),
+                          border: currentFeedback.rating === "helpful" ? "1px solid #000000" : (readerTheme === "dark" ? "1px solid #334155" : "1px solid #e4e4e7"),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={currentFeedback.rating === "helpful" ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                        </svg>
+                      </button>
+
+                      {/* Thumbs Down Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRating("unhelpful")}
+                        title="No, this could be improved"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background: currentFeedback.rating === "unhelpful" ? "#000000" : (readerTheme === "dark" ? "#0f172a" : "#ffffff"),
+                          color: currentFeedback.rating === "unhelpful" ? "#ffffff" : (readerTheme === "dark" ? "#cbd5e1" : "#52525b"),
+                          border: currentFeedback.rating === "unhelpful" ? "1px solid #000000" : (readerTheme === "dark" ? "1px solid #334155" : "1px solid #e4e4e7"),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={currentFeedback.rating === "unhelpful" ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Feedback Form Accordion Content */}
+                  {currentFeedback.rating && !currentFeedback.isSubmitted && (
+                    <div style={{ marginTop: "1.25rem", paddingTop: "0.5rem" }}>
+                      <h4
+                        style={{
+                          margin: "0 0 0.85rem",
+                          fontSize: "0.9375rem",
+                          fontWeight: 700,
+                          color: readerTheme === "dark" ? "#f1f5f9" : "#18181b",
+                        }}
+                      >
+                        {currentFeedback.rating === "helpful" ? "What worked well?" : "What could be improved?"}
+                      </h4>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                        {(currentFeedback.rating === "helpful"
+                          ? [
+                              "Learned something new",
+                              "Clear and easy to follow",
+                              "Right level of detail",
+                              "Useful examples",
+                              "Something else",
+                            ]
+                          : [
+                              "Something is incorrect",
+                              "Hard to follow",
+                              "Out of date",
+                              "Something is broken",
+                              "Something else",
+                            ]
+                        ).map((opt) => (
+                          <label
+                            key={opt}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                              fontSize: "0.9rem",
+                              color: readerTheme === "dark" ? "#cbd5e1" : "#27272a",
+                              cursor: "pointer",
+                              userSelect: "none",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name={`feedback-opt-${activeLessonId}`}
+                              checked={currentFeedback.reason === opt}
+                              onChange={() => handleSelectReason(opt)}
+                              style={{ width: 17, height: 17, accentColor: "#000000", cursor: "pointer" }}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Action buttons (No thanks & Next) */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          gap: "1.25rem",
+                          marginTop: "1.5rem",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={handleResetFeedback}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: readerTheme === "dark" ? "#94a3b8" : "#18181b",
+                            fontSize: "0.875rem",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            padding: "0.35rem 0.5rem",
+                          }}
+                        >
+                          No thanks
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSubmitFeedback}
+                          disabled={!currentFeedback.reason}
+                          style={{
+                            padding: "0.45rem 1.25rem",
+                            borderRadius: "8px",
+                            border: currentFeedback.reason ? "1px solid #000000" : (readerTheme === "dark" ? "1px solid #334155" : "1px solid #e4e4e7"),
+                            background: currentFeedback.reason ? "#000000" : (readerTheme === "dark" ? "#1e293b" : "#f4f4f5"),
+                            color: currentFeedback.reason ? "#ffffff" : (readerTheme === "dark" ? "#64748b" : "#a1a1aa"),
+                            fontSize: "0.875rem",
+                            fontWeight: 600,
+                            cursor: currentFeedback.reason ? "pointer" : "not-allowed",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   )}
-                  {nextLesson && (
-                    <button
-                      onClick={() => setActiveLessonId(nextLesson.id)}
+
+                  {/* Submission Confirmation */}
+                  {currentFeedback.isSubmitted && (
+                    <div
                       style={{
-                        padding: "0.65rem 1.25rem",
-                        borderRadius: "8px",
-                        border: "1px solid #cbd5e1",
-                        background: "#fff",
-                        color: "#334155",
-                        fontWeight: 600,
-                        fontSize: "0.875rem",
-                        cursor: "pointer",
+                        marginTop: "1.25rem",
+                        paddingTop: "1rem",
+                        borderTop: readerTheme === "dark" ? "1px solid #334155" : "1px solid #ede8de",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: "0.75rem",
                       }}
                     >
-                      Next Lesson →
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#16a34a", fontSize: "0.9375rem", fontWeight: 600 }}>
+                        <span>✓</span>
+                        <span>Thank you for your feedback!</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetFeedback}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#71717a",
+                          fontSize: "0.8125rem",
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Change response
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clean Divider Line */}
+                <div style={{ width: "100%", height: 1, background: readerTheme === "dark" ? "#334155" : "#e5e7eb", margin: "2.5rem 0" }} />
+
+                {/* ── PREVIOUS & NEXT LESSON CARDS (Exact Match to Design) ── */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: prevLesson && nextLesson ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+                    gap: "1.25rem",
+                    width: "100%",
+                  }}
+                >
+                  {/* Previous Lesson Card */}
+                  {prevLesson ? (
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToLesson(prevLesson.id)}
+                      style={{
+                        background: readerTheme === "dark" ? "#1e293b" : "#ffffff",
+                        border: readerTheme === "dark" ? "1px solid #334155" : "1px solid #e4e4e7",
+                        borderRadius: "14px",
+                        padding: "1.25rem 1.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "1rem",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = readerTheme === "dark" ? "#64748b" : "#a1a1aa";
+                        e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.06)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = readerTheme === "dark" ? "#334155" : "#e4e4e7";
+                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.02)";
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: "50%",
+                          background: readerTheme === "dark" ? "#0f172a" : "#f4f4f5",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          color: readerTheme === "dark" ? "#94a3b8" : "#52525b",
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="19" y1="12" x2="5" y2="12" />
+                          <polyline points="12 19 5 12 12 5" />
+                        </svg>
+                      </div>
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: "0.75rem", color: "#71717a", fontWeight: 500, marginBottom: "0.2rem" }}>
+                          Previous lesson
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.95rem",
+                            fontWeight: 700,
+                            color: readerTheme === "dark" ? "#f8fafc" : "#18181b",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {prevLesson.title}
+                        </div>
+                      </div>
                     </button>
+                  ) : <div />}
+
+                  {/* Next Lesson Card */}
+                  {nextLesson ? (
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToLesson(nextLesson.id)}
+                      style={{
+                        background: readerTheme === "dark" ? "#1e293b" : "#ffffff",
+                        border: readerTheme === "dark" ? "2px solid #38bdf8" : "2px solid #000000",
+                        borderRadius: "14px",
+                        padding: "1.25rem 1.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "1rem",
+                        textAlign: "right",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "none";
+                        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: "0.75rem", color: "#71717a", fontWeight: 500, marginBottom: "0.2rem" }}>
+                          Next lesson
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.95rem",
+                            fontWeight: 700,
+                            color: readerTheme === "dark" ? "#f8fafc" : "#18181b",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {nextLesson.title}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: "50%",
+                          background: readerTheme === "dark" ? "#0f172a" : "#f4f4f5",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          color: readerTheme === "dark" ? "#94a3b8" : "#52525b",
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                          <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                      </div>
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        background: readerTheme === "dark" ? "#1e293b" : "#f0fdf4",
+                        border: "1.5px solid #86efac",
+                        borderRadius: "14px",
+                        padding: "1.25rem 1.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.75rem", color: "#166534", fontWeight: 600 }}>End of Course</div>
+                        <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#14532d" }}>Course Completed 🎉</div>
+                      </div>
+                      <Link
+                        href="/dashboard"
+                        style={{
+                          background: "#16a34a",
+                          color: "#fff",
+                          fontWeight: 700,
+                          fontSize: "0.8125rem",
+                          padding: "0.5rem 1rem",
+                          borderRadius: "8px",
+                          textDecoration: "none",
+                        }}
+                      >
+                        View Certificate
+                      </Link>
+                    </div>
                   )}
                 </div>
               </div>

@@ -64,8 +64,8 @@ export default function NavigationProgressBar() {
       <div
         style={{
           height: "100%",
-          background: "linear-gradient(90deg, #005073 0%, #049fd9 50%, #6abf4b 100%)",
-          boxShadow: "0 0 10px #049fd9, 0 0 5px #6abf4b",
+          background: "linear-gradient(90deg, #003366 0%, #004b87 40%, #006fa8 75%, #38bdf8 100%)",
+          boxShadow: "0 0 10px #006fa8, 0 0 5px #38bdf8",
           animation: "topProgressPulse 1.8s ease-in-out infinite",
         }}
       />

@@ -73,7 +73,7 @@ export default function CourseCard({ course }: CourseCardProps) {
           background: "#ffffff",
           borderRadius: "8px",
           border: "1px solid var(--na-gray-200)",
-          borderBottom: "3px solid #6abf4b", // Exact Cisco NetAcad green bottom accent from image
+          borderBottom: "3px solid var(--brand-accent-500)", // AI Tech Hub vibrant brand accent
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -113,7 +113,7 @@ export default function CourseCard({ course }: CourseCardProps) {
             }}
           />
 
-          {/* Level Badge (Exact match to green BEGINNER pill in top left) */}
+          {/* Level Badge */}
           <div
             style={{
               position: "absolute",
@@ -126,8 +126,8 @@ export default function CourseCard({ course }: CourseCardProps) {
               style={{
                 display: "inline-block",
                 padding: "3px 8px",
-                background: isBeginner ? "#6abf4b" : "var(--na-blue-400)",
-                color: isBeginner ? "#0e3304" : "#ffffff",
+                background: isBeginner ? "var(--brand-blue-600)" : "var(--brand-accent-500)",
+                color: "#ffffff",
                 fontWeight: 800,
                 fontSize: "0.6875rem",
                 letterSpacing: "0.06em",

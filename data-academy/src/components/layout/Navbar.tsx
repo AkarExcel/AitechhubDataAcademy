@@ -216,38 +216,49 @@ export default function Navbar() {
             gap: "0.85rem",
           }}
         >
-          {/* Brand Logo - Crisp typography matching Cisco Networking Academy screenshot */}
+          {/* Brand Logo - Official AI Tech Hub Logo */}
           <Link
             href="/"
             style={{
               display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
+              alignItems: "center",
+              gap: "0.65rem",
               textDecoration: "none",
               flexShrink: 0,
-              lineHeight: 1.15,
-              paddingRight: "0.25rem",
+              paddingRight: "0.5rem",
             }}
           >
-            <div
+            <img
+              src="/images/logo.png"
+              alt="AI Tech Hub"
               style={{
-                fontSize: "0.725rem",
-                fontWeight: 600,
-                color: "var(--na-gray-600)",
-                letterSpacing: "0.01em",
+                height: 38,
+                width: "auto",
+                objectFit: "contain",
               }}
-            >
-              AitecHub
-            </div>
-            <div
-              style={{
-                fontSize: "0.9375rem",
-                fontWeight: 800,
-                color: "var(--na-navy-900)",
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Data Academy
+            />
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+              <div
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 900,
+                  color: "var(--brand-navy-800)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                AI Tech Hub
+              </div>
+              <div
+                style={{
+                  fontSize: "0.6875rem",
+                  fontWeight: 700,
+                  color: "var(--brand-accent-500)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Data Academy
+              </div>
             </div>
           </Link>
 

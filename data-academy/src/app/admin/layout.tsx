@@ -1,6 +1,6 @@
 import Navbar from "@/components/layout/Navbar";
+import AdminSidebar from "@/components/layout/AdminSidebar";
 import { requireRole } from "@/lib/permissions";
-import Link from "next/link";
 
 export default async function AdminLayout({
   children,
@@ -124,81 +124,8 @@ export default async function AdminLayout({
           paddingTop: "calc(var(--topbar-height) + var(--announce-height))",
         }}
       >
-        {/* Admin / Tutor Sidebar */}
-        <aside
-          style={{
-            position: "sticky",
-            top: "calc(var(--topbar-height) + var(--announce-height))",
-            height: "calc(100vh - var(--topbar-height) - var(--announce-height))",
-            width: 250,
-            flexShrink: 0,
-            background: "var(--na-navy-900)",
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            borderRight: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          {/* Header Badge */}
-          <div style={{ padding: "1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "6px",
-                  background: isAdmin ? "linear-gradient(135deg, #0284c7, #0369a1)" : "linear-gradient(135deg, #6abf4b, #166534)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-              </div>
-              <div style={{ lineHeight: 1.2 }}>
-                <span style={{ color: "#fff", fontWeight: 800, fontSize: "0.8125rem", letterSpacing: "0.06em", textTransform: "uppercase", display: "block" }}>
-                  {isAdmin ? "Admin Console" : "Instructor Hub"}
-                </span>
-                <span style={{ color: "var(--na-blue-400)", fontSize: "0.6875rem" }}>
-                  {isAdmin ? "Course Operations" : "Curriculum & Lessons"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav style={{ padding: "1rem 0.625rem", flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            {adminNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.625rem 0.875rem",
-                  borderRadius: "var(--radius-md)",
-                  color: "rgba(255,255,255,0.75)",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                  textDecoration: "none",
-                  transition: "all var(--transition-fast)",
-                }}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-
-          {/* Admin Role Footnote */}
-          <div style={{ padding: "1rem", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "0.6875rem", color: "var(--na-gray-400)" }}>
-            Logged in as <strong style={{ color: "#fff" }}>Platform Admin</strong>
-          </div>
-        </aside>
+        {/* Admin / Tutor Sidebar (Minimized by default, animated expand) */}
+        <AdminSidebar isAdmin={isAdmin} adminNav={adminNav} />
 
         {/* Main Workspace */}
         <main style={{ flex: 1, padding: "2.5rem 2rem", overflowX: "hidden" }}>
