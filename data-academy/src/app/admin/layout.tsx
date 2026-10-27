@@ -89,6 +89,25 @@ export default async function AdminLayout({
               </svg>
             ),
           },
+          {
+            href: "/admin/paths",
+            label: "Learning Paths",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12h18M3 6l9-3 9 3M3 18l9 3 9-3" />
+              </svg>
+            ),
+          },
+          {
+            href: "/admin/certificates",
+            label: "Certificates",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="6" />
+                <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+              </svg>
+            ),
+          },
         ]
       : []),
     {

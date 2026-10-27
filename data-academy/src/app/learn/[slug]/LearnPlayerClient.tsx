@@ -4147,7 +4147,7 @@ export default function LearnPlayerClient({
                         <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#14532d" }}>Course Completed 🎉</div>
                       </div>
                       <Link
-                        href="/dashboard"
+                        href="/certificates"
                         style={{
                           background: "#16a34a",
                           color: "#fff",

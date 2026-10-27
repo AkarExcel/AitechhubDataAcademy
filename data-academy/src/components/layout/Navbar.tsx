@@ -360,13 +360,20 @@ export default function Navbar() {
                     </Link>
                   ))}
                 </div>
-                <div style={{ marginTop: "0.625rem", paddingTop: "0.625rem", borderTop: "1px solid var(--na-gray-100)", textAlign: "center" }}>
+                <div style={{ marginTop: "0.625rem", paddingTop: "0.625rem", borderTop: "1px solid var(--na-gray-100)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Link
                     href="/courses"
                     onClick={() => setExploreOpen(false)}
                     style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--na-blue-500)", textDecoration: "none" }}
                   >
-                    View All Courses &amp; Programs →
+                    View All Courses →
+                  </Link>
+                  <Link
+                    href="/paths"
+                    onClick={() => setExploreOpen(false)}
+                    style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--na-green-600)", textDecoration: "none" }}
+                  >
+                    Career Paths →
                   </Link>
                 </div>
               </div>
@@ -1058,7 +1065,7 @@ export default function Navbar() {
 
                 {[
                   { label: "Update Profile", href: "/dashboard" },
-                  { label: "Badges & Certificates", href: "/dashboard" },
+                  { label: "Badges & Certificates", href: "/certificates" },
                   { label: "Discounts", href: "/courses" },
                   { label: "Learning History", href: "/dashboard" },
                   { label: "Transcript", href: "/dashboard" },

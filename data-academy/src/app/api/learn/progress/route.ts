@@ -87,7 +87,8 @@ export async function POST(request: Request) {
     });
 
     const progressRatio = totalLessons > 0 ? completedCount / totalLessons : 0;
-    const isCourseFinished = progressRatio >= 1.0;
+    const threshold = course.completionThreshold || 0.8;
+    const isCourseFinished = progressRatio >= 1.0 || progressRatio >= threshold;
 
     // 4. Update or create Enrollment progress
     const enrollment = await prisma.enrollment.upsert({
@@ -113,6 +114,17 @@ export async function POST(request: Request) {
       },
     });
 
+    // 5. Automatically generate certificate if course is completed
+    let generatedCertificate = null;
+    if (isCourseFinished) {
+      try {
+        const { autoGenerateCertificate } = await import("@/lib/certificates");
+        generatedCertificate = await autoGenerateCertificate(userId, courseId);
+      } catch (certError) {
+        console.error("Automatic certificate generation error:", certError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       lessonId,
@@ -121,6 +133,14 @@ export async function POST(request: Request) {
       totalLessons,
       progressRatio,
       enrollmentStatus: enrollment.status,
+      isCourseFinished,
+      certificate: generatedCertificate
+        ? {
+            id: generatedCertificate.id,
+            code: generatedCertificate.certificateCode,
+            verificationUrl: generatedCertificate.verificationUrl,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Failed to update lesson progress:", error);

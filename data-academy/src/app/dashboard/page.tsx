@@ -42,11 +42,16 @@ async function getDashboardData(userId: string) {
     }),
   ]);
 
-  const completedCount = await prisma.enrollment.count({
-    where: { userId, status: "COMPLETED" },
-  });
+  const [completedCount, certificateCount] = await Promise.all([
+    prisma.enrollment.count({
+      where: { userId, status: "COMPLETED" },
+    }),
+    prisma.certificate.count({
+      where: { userId },
+    }),
+  ]);
 
-  return { user, enrollments, notifications, recentProgress, completedCount };
+  return { user, enrollments, notifications, recentProgress, completedCount, certificateCount };
 }
 
 export const instant = false;
@@ -54,7 +59,7 @@ export const instant = false;
 export default async function StudentDashboard() {
   const sessionUser = await requireUser("/dashboard");
 
-  const { user, enrollments, notifications, recentProgress, completedCount } =
+  const { user, enrollments, notifications, recentProgress, completedCount, certificateCount } =
     await getDashboardData(sessionUser.id);
 
   const firstName = user?.profile?.firstName || "Learner";
@@ -131,7 +136,7 @@ export default async function StudentDashboard() {
               ),
             },
             {
-              value: 0,
+              value: certificateCount,
               label: "Certificates",
               color: "#005073",
               icon: (
