@@ -118,6 +118,7 @@ export default function DashboardSidebar({ user, role, notificationCount = 0 }: 
 
   return (
     <aside
+      className="no-scrollbar"
       style={{
         position: "sticky",
         top: "calc(var(--topbar-height) + var(--announce-height))",
@@ -131,6 +132,8 @@ export default function DashboardSidebar({ user, role, notificationCount = 0 }: 
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         overflowX: "hidden",
         overflowY: "auto",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
         zIndex: 30,
         boxShadow: isExpanded ? "4px 0 20px rgba(0, 0, 0, 0.15)" : "none",
       }}

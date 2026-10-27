@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "aitechhub-courses": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx -y tsx c:/Users/EXCEL/coderabbits/AitechhubDataAcademy/data-academy/scripts/mcp-course-server.ts"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}

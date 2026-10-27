@@ -168,6 +168,17 @@ code { font-family: var(--font-mono); font-size: 0.875em; }
 ::-webkit-scrollbar-thumb { background: var(--na-gray-300); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--na-gray-400); }
 
+/* HIDE SCROLLBAR BUT ALLOW SCROLLING */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important;    /* Firefox */
+}
+
 /* LAYOUT */
 .section { padding: 5rem 0; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }

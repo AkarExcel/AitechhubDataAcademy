@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aitechhub-courses": {
+      "command": "npx",
+      "args": ["-y", "tsx", "scripts/mcp-course-server.ts"]
+    }
+  }
+}
