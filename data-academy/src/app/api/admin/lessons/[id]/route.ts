@@ -81,7 +81,33 @@ export async function PUT(
     const updated = await prisma.lesson.update({
       where: { id },
       data: parsed.data,
+      include: {
+        module: {
+          include: {
+            course: {
+              select: { id: true, title: true, slug: true },
+            },
+          },
+        },
+      },
     });
+
+    // Notify all enrolled students (including completed alumni) of the updated material
+    try {
+      if (updated.module?.course) {
+        const { notifyCourseStudents } = await import("@/lib/notifications");
+        await notifyCourseStudents({
+          courseId: updated.module.course.id,
+          title: `📝 Course Material Updated: ${updated.title}`,
+          message: `The lesson "${updated.title}" in "${updated.module.course.title}" has been updated with fresh materials.`,
+          link: `/learn/${updated.module.course.slug}?lessonId=${updated.id}`,
+          type: "ANNOUNCEMENT",
+          includeCompleted: true,
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Failed to broadcast lesson update notification:", notifErr);
+    }
 
     return NextResponse.json({ success: true, lesson: updated });
   } catch (error) {

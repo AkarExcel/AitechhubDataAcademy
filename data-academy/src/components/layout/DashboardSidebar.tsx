@@ -72,39 +72,6 @@ export default function DashboardSidebar({ user, role, notificationCount = 0 }: 
       ),
     },
     {
-      href: "/assignments",
-      label: "Assignments",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-      ),
-    },
-    {
-      href: "/assessments",
-      label: "Assessments",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m9 11 3 3L22 4" />
-          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-        </svg>
-      ),
-    },
-    {
-      href: "/projects",
-      label: "Projects",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2" />
-          <polyline points="2 17 12 22 22 17" />
-          <polyline points="2 12 12 17 22 12" />
-        </svg>
-      ),
-    },
-    {
       href: "/certificates",
       label: "Certificates",
       icon: (
@@ -485,19 +452,24 @@ export default function DashboardSidebar({ user, role, notificationCount = 0 }: 
             gap: "0.75rem",
             padding: isExpanded ? "0.625rem 0.875rem" : "0.625rem 0",
             borderRadius: "8px",
-            color: "rgba(255, 255, 255, 0.75)",
+            color: pathname.startsWith("/settings") ? "#ffffff" : "rgba(255, 255, 255, 0.75)",
+            background: pathname.startsWith("/settings") ? "var(--brand-blue-600, #004b87)" : "transparent",
             fontSize: "0.875rem",
-            fontWeight: 500,
+            fontWeight: pathname.startsWith("/settings") ? 700 : 500,
             textDecoration: "none",
             transition: "all var(--transition-fast, 120ms ease)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-            e.currentTarget.style.color = "#ffffff";
+            if (!pathname.startsWith("/settings")) {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+              e.currentTarget.style.color = "#ffffff";
+            }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "rgba(255, 255, 255, 0.75)";
+            if (!pathname.startsWith("/settings")) {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = "rgba(255, 255, 255, 0.75)";
+            }
           }}
         >
           <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24 }}>

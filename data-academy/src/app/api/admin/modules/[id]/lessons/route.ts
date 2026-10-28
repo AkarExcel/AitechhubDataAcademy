@@ -75,6 +75,28 @@ export async function POST(
       },
     });
 
+    // Notify all enrolled students (including completed students) of the new lesson
+    try {
+      const moduleWithCourse = await prisma.module.findUnique({
+        where: { id: moduleId },
+        include: { course: { select: { id: true, title: true, slug: true } } },
+      });
+
+      if (moduleWithCourse?.course) {
+        const { notifyCourseStudents } = await import("@/lib/notifications");
+        await notifyCourseStudents({
+          courseId: moduleWithCourse.course.id,
+          title: `📚 New Material Added: ${lesson.title}`,
+          message: `New learning content "${lesson.title}" has been added to "${moduleWithCourse.course.title}". Check out the update!`,
+          link: `/learn/${moduleWithCourse.course.slug}?lessonId=${lesson.id}`,
+          type: "ANNOUNCEMENT",
+          includeCompleted: true,
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Failed to broadcast new lesson notification:", notifErr);
+    }
+
     return NextResponse.json({ success: true, lesson }, { status: 201 });
   } catch (error) {
     console.error("Create lesson error:", error);

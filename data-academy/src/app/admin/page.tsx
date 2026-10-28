@@ -14,6 +14,7 @@ async function getAdminOverviewData() {
     totalLessons,
     totalTutors,
     totalEnrollments,
+    totalNotifications,
     recentCourses,
     tutors,
   ] = await Promise.all([
@@ -24,6 +25,7 @@ async function getAdminOverviewData() {
     prisma.lesson.count(),
     prisma.tutorProfile.count({ where: { isApproved: true } }),
     prisma.enrollment.count(),
+    prisma.notification.count(),
     prisma.course.findMany({
       take: 8,
       orderBy: { updatedAt: "desc" },
@@ -61,6 +63,7 @@ async function getAdminOverviewData() {
       totalLessons,
       totalTutors,
       totalEnrollments,
+      totalNotifications,
     },
     recentCourses,
     tutors,
@@ -94,6 +97,54 @@ export default async function AdminDashboardPage() {
         </div>
 
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <Link
+            href="/admin/updates"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.625rem 1.25rem",
+              borderRadius: "9999px",
+              fontWeight: 700,
+              textDecoration: "none",
+              border: "1.5px solid var(--brand-accent-200, #bae6fd)",
+              background: "var(--brand-blue-subtle, #f0f6ff)",
+              color: "var(--brand-blue-700, #004074)",
+              fontSize: "0.875rem",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <rect x="2" y="4" width="20" height="6" rx="2" />
+              <path d="M6 14h12" />
+              <path d="M6 18h7" />
+            </svg>
+            Top Banner Updates
+          </Link>
+          <Link
+            href="/admin/notifications"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.625rem 1.25rem",
+              borderRadius: "9999px",
+              fontWeight: 700,
+              textDecoration: "none",
+              border: "1.5px solid #e2e8f0",
+              background: "#ffffff",
+              color: "#1e293b",
+              fontSize: "0.875rem",
+              transition: "all 0.15s ease",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            Student Notifications
+          </Link>
           <Link
             href="/admin/courses/new"
             className="btn btn-green"
@@ -269,6 +320,158 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* ── BROADCAST GATEWAYS: TOP BANNER UPDATES & STUDENT NOTIFICATIONS ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+          gap: "1.5rem",
+          marginBottom: "2.5rem",
+        }}
+      >
+        {/* Card 1: Top Banner Updates & Reminders (Public) */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #001830 0%, #002b54 60%, #004b87 100%)",
+            borderRadius: 16,
+            padding: "1.75rem",
+            color: "#ffffff",
+            boxShadow: "0 8px 24px rgba(0, 24, 48, 0.16)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                background: "rgba(255, 255, 255, 0.12)",
+                padding: "0.25rem 0.65rem",
+                borderRadius: 9999,
+                fontSize: "0.6875rem",
+                fontWeight: 700,
+                color: "var(--brand-accent-300, #38bdf8)",
+                marginBottom: "0.6rem",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="2" y="4" width="20" height="6" rx="2" />
+                <path d="M6 14h12" />
+                <path d="M6 18h7" />
+              </svg>
+              Public Sticky Bar • All Visitors
+            </div>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 0.35rem 0", color: "#ffffff" }}>
+              Top Banner Updates &amp; Reminders
+            </h2>
+            <p style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.5 }}>
+              Broadcast sticky announcements, deadline alerts, and profile verification reminders at the top of the navbar to both registered and unregistered visitors.
+            </p>
+          </div>
+
+          <div style={{ marginTop: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)" }}>
+              Always visible across site navbar
+            </span>
+            <Link
+              href="/admin/updates"
+              style={{
+                background: "#ffffff",
+                color: "var(--brand-blue-700, #004074)",
+                fontWeight: 700,
+                fontSize: "0.8125rem",
+                padding: "0.55rem 1.15rem",
+                borderRadius: 10,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              }}
+            >
+              <span>Manage Top Banner</span>
+              <span>&rarr;</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Card 2: Student Notifications (Registered Enrolled Students) */}
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1.5px solid var(--brand-accent-200, #bae6fd)",
+            borderRadius: 16,
+            padding: "1.75rem",
+            color: "#0f172a",
+            boxShadow: "0 4px 16px rgba(0, 75, 135, 0.06)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                background: "var(--brand-blue-subtle, #f0f6ff)",
+                padding: "0.25rem 0.65rem",
+                borderRadius: 9999,
+                fontSize: "0.6875rem",
+                fontWeight: 700,
+                color: "var(--brand-blue-700, #004074)",
+                marginBottom: "0.6rem",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              Student Inboxes • Enrolled Learners
+            </div>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 0.35rem 0", color: "#0f172a" }}>
+              Student Notifications Dispatcher
+            </h2>
+            <p style={{ fontSize: "0.8125rem", color: "#475569", margin: 0, lineHeight: 1.5 }}>
+              Dispatch targeted coursework notifications, weekly nudges, and new material alerts directly to registered students&apos; notification bells with certificate protection.
+            </p>
+          </div>
+
+          <div style={{ marginTop: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--brand-blue-600, #004b87)" }}>
+              {stats.totalNotifications || 0} Alerts Delivered
+            </span>
+            <Link
+              href="/admin/notifications"
+              style={{
+                background: "linear-gradient(135deg, var(--brand-blue-600, #004b87) 0%, var(--brand-accent-500, #006fa8) 100%)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "0.8125rem",
+                padding: "0.55rem 1.15rem",
+                borderRadius: 10,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                boxShadow: "0 2px 8px rgba(0, 75, 135, 0.25)",
+              }}
+            >
+              <span>Dispatch Notifications</span>
+              <span>&rarr;</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Courses Management Table */}
       <div className="card" style={{ padding: "1.75rem", marginBottom: "2.5rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
@@ -365,6 +568,28 @@ export default async function AdminDashboardPage() {
                           style={{ padding: "0.35rem 0.75rem", fontSize: "0.75rem" }}
                         >
                           Edit
+                        </Link>
+                        <Link
+                          href={`/admin/notifications?courseId=${c.id}`}
+                          title="Send notification to students enrolled in this course"
+                          className="btn btn-ghost"
+                          style={{
+                            padding: "0.35rem 0.7rem",
+                            fontSize: "0.75rem",
+                            color: "var(--brand-blue-600, #004b87)",
+                            border: "1px solid var(--brand-accent-200, #bae6fd)",
+                            background: "var(--brand-blue-subtle, #f0f6ff)",
+                            fontWeight: 700,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                          }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                          </svg>
+                          Notify
                         </Link>
                         <Link
                           href={`/courses/${c.slug}`}

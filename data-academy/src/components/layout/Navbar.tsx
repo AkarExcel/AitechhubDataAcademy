@@ -25,6 +25,21 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAudience, setSearchAudience] = useState("Learner");
 
+  // Dynamic Top Banner Updates & Reminders
+  const [topBanners, setTopBanners] = useState([
+    {
+      id: "banner-profile-name",
+      badge: "Updates",
+      type: "Reminder",
+      message:
+        "Check your profile name before course completion. Make sure it matches how you want it to appear on your certificate.",
+      linkText: "Read more",
+      linkUrl: "/settings",
+      isActive: true,
+    },
+  ]);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
   const pathname = usePathname();
   const router = useRouter();
 
@@ -33,6 +48,14 @@ export default function Navbar() {
 
   useEffect(() => {
     setMounted(true);
+    fetch("/api/announcements/top-banner")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.banners && Array.isArray(data.banners) && data.banners.length > 0) {
+          setTopBanners(data.banners);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -87,7 +110,8 @@ export default function Navbar() {
   };
 
   const isLoggedIn = mounted && status === "authenticated" && Boolean(session?.user);
-  const showBanner = isLoggedIn && !announceDismissed;
+  // Show banner to both registered and unregistered users as specified
+  const showBanner = mounted && !announceDismissed;
   const navTop = showBanner ? 44 : 0;
 
   // Sync nav offset with root CSS variable
@@ -103,16 +127,19 @@ export default function Navbar() {
   const rawRole = ((session?.user as { role?: string })?.role || "STUDENT").toUpperCase();
   const userRole = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
 
+  const activeBanners = topBanners.filter((b) => b.isActive);
+  const currentBanner = activeBanners[currentBannerIndex % (activeBanners.length || 1)] || topBanners[0];
+
   return (
     <>
-      {/* ─── NETACAD "UPDATES" TOP BANNER (Logged-in learners only) ── */}
-      {showBanner && (
+      {/* ─── AI TECH HUB "UPDATES & REMINDER" TOP BANNER (Brand Colors & Dynamic Cycling) ── */}
+      {showBanner && currentBanner && (
         <div
           className="updates-topbar"
           style={{
             height: "var(--announce-height)",
-            background: "linear-gradient(90deg, #013725 0%, #034f35 50%, #023d29 100%)",
-            borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+            background: "linear-gradient(90deg, #001830 0%, #002244 35%, #003366 70%, #004b87 100%)",
+            borderBottom: "1px solid rgba(56, 189, 248, 0.25)",
             color: "#fff",
             display: "flex",
             alignItems: "center",
@@ -124,45 +151,104 @@ export default function Navbar() {
             left: 0,
             right: 0,
             zIndex: 60,
+            boxShadow: "0 2px 10px rgba(0, 24, 48, 0.25)",
           }}
         >
           {/* Left: Updates Title & Message */}
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <span style={{ fontWeight: 800, fontSize: "0.875rem", letterSpacing: "0.02em", color: "#fff" }}>
-              Updates
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span
+              style={{
+                fontWeight: 800,
+                fontSize: "0.75rem",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                background: "linear-gradient(135deg, var(--brand-accent-500, #006fa8), var(--brand-accent-400, #0088cc))",
+                color: "#ffffff",
+                padding: "2px 8px",
+                borderRadius: "4px",
+                boxShadow: "0 2px 6px rgba(0, 136, 204, 0.3)",
+                flexShrink: 0,
+              }}
+            >
+              {currentBanner.badge || "Updates"}
             </span>
-            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.8125rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              Reminder: Check your profile name before course completion. Make sure it matches how you want it to appear on your certificate.
+            <span style={{ color: "rgba(255,255,255,0.92)", fontSize: "0.8125rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {currentBanner.type && (
+                <strong style={{ color: "var(--brand-accent-300, #38bdf8)", marginRight: "0.4rem" }}>
+                  {currentBanner.type}:
+                </strong>
+              )}
+              {currentBanner.message}
             </span>
           </div>
 
           {/* Right: Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
             <Link
-              href="/dashboard"
+              href={currentBanner.linkUrl || "/settings"}
               style={{
                 display: "inline-block",
                 padding: "0.2rem 0.85rem",
                 borderRadius: "9999px",
-                border: "1px solid rgba(255, 255, 255, 0.5)",
+                border: "1px solid rgba(56, 189, 248, 0.4)",
                 color: "#fff",
                 fontSize: "0.75rem",
                 fontWeight: 600,
                 textDecoration: "none",
-                background: "rgba(255, 255, 255, 0.08)",
+                background: "rgba(56, 189, 248, 0.12)",
                 transition: "all var(--transition-fast)",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.2)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.25)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.12)"; }}
             >
-              Read more
+              {currentBanner.linkText || "Read more"}
             </Link>
 
             {/* Pagination Controls */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: "rgba(255,255,255,0.75)", fontSize: "0.75rem" }}>
-              <span style={{ cursor: "pointer", opacity: 0.6 }}>&lt;</span>
-              <span style={{ fontWeight: 600 }}>1/1</span>
-              <span style={{ cursor: "pointer", opacity: 0.6 }}>&gt;</span>
+              <button
+                type="button"
+                onClick={() => setCurrentBannerIndex((prev) => (prev > 0 ? prev - 1 : activeBanners.length - 1))}
+                disabled={activeBanners.length <= 1}
+                aria-label="Previous reminder"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#ffffff",
+                  cursor: activeBanners.length > 1 ? "pointer" : "default",
+                  opacity: activeBanners.length > 1 ? 0.85 : 0.35,
+                  padding: "0 2px",
+                  fontSize: "0.875rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                &lt;
+              </button>
+              <span style={{ fontWeight: 700, color: "var(--brand-accent-300, #38bdf8)" }}>
+                {activeBanners.length > 0 ? `${(currentBannerIndex % activeBanners.length) + 1}/${activeBanners.length}` : "1/1"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentBannerIndex((prev) => (prev < activeBanners.length - 1 ? prev + 1 : 0))}
+                disabled={activeBanners.length <= 1}
+                aria-label="Next reminder"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#ffffff",
+                  cursor: activeBanners.length > 1 ? "pointer" : "default",
+                  opacity: activeBanners.length > 1 ? 0.85 : 0.35,
+                  padding: "0 2px",
+                  fontSize: "0.875rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                &gt;
+              </button>
             </div>
 
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.2)" }} />
@@ -180,7 +266,10 @@ export default function Navbar() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                transition: "color 0.15s ease",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#ffffff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M2 2l10 10M12 2L2 12" />
@@ -467,14 +556,17 @@ export default function Navbar() {
               /* ── Logged In Controls (Screenshot 2 / Authenticated) ── */
               <>
                 <Link
-                  href="/dashboard"
+                  href="/my-learning"
                   style={{
                     fontSize: "0.875rem",
                     fontWeight: 600,
-                    color: pathname === "/dashboard" ? "var(--na-blue-500)" : "#1e293b",
+                    color: pathname === "/my-learning" ? "var(--brand-blue-600, #004b87)" : "#1e293b",
                     textDecoration: "none",
                     display: "inline-flex",
                     alignItems: "center",
+                    borderBottom: pathname === "/my-learning" ? "3px solid var(--brand-blue-600, #004b87)" : "3px solid transparent",
+                    padding: "0.4rem 0",
+                    transition: "all 0.15s ease",
                   }}
                   className="desktop-only"
                 >
@@ -517,7 +609,7 @@ export default function Navbar() {
 
                 {/* Notification Bell */}
                 <Link
-                  href="/dashboard"
+                  href="/notifications"
                   style={{ color: "#1e293b", position: "relative", display: "flex", alignItems: "center" }}
                   title="Notifications"
                   className="desktop-only"
@@ -1064,11 +1156,10 @@ export default function Navbar() {
                 </div>
 
                 {[
-                  { label: "Update Profile", href: "/dashboard" },
+                  { label: "Update Profile", href: "/settings?tab=profile" },
                   { label: "Badges & Certificates", href: "/certificates" },
-                  { label: "Discounts", href: "/courses" },
-                  { label: "Learning History", href: "/dashboard" },
-                  { label: "Transcript", href: "/dashboard" },
+                  { label: "Discounts", href: "/settings?tab=discounts" },
+                  { label: "Learning History", href: "/settings?tab=history" },
                 ].map((item) => (
                   <Link
                     key={item.label}

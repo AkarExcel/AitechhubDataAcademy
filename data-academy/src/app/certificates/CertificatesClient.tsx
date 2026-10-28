@@ -118,6 +118,7 @@ export default function CertificatesClient({
               <h1
                 style={{
                   fontSize: "2.25rem",
+                  color: "rgba(255,255,255,0.8)",
                   fontWeight: 900,
                   margin: "0 0 0.5rem 0",
                   letterSpacing: "-0.02em",
@@ -128,7 +129,7 @@ export default function CertificatesClient({
               <p
                 style={{
                   fontSize: "1rem",
-                  color: "rgba(255,255,255,0.8)",
+                  color: "rgba(255, 255, 255, 1)",
                   margin: 0,
                   maxWidth: 580,
                   lineHeight: 1.5,
@@ -386,7 +387,7 @@ export default function CertificatesClient({
                     >
                       <span>Issued {formattedDate}</span>
                       <span>•</span>
-                      <span style={{ color: "#16a34a", fontWeight: 700 }}>Verified ✓</span>
+                      <span style={{ color: "var(--brand-blue-600, #004b87)", fontWeight: 700 }}>Verified ✓</span>
                     </div>
                   </div>
 
@@ -424,9 +425,9 @@ export default function CertificatesClient({
                       onClick={() => handleCopyLink(cert.certificateCode)}
                       title="Copy Public Link"
                       style={{
-                        background: copiedCode === cert.certificateCode ? "#f0fdf4" : "var(--na-gray-50, #f8fafc)",
-                        color: copiedCode === cert.certificateCode ? "#16a34a" : "var(--na-gray-700, #334155)",
-                        border: "1px solid var(--na-gray-200, #e2e8f0)",
+                        background: copiedCode === cert.certificateCode ? "var(--brand-blue-subtle, #f0f6ff)" : "var(--na-gray-50, #f8fafc)",
+                        color: copiedCode === cert.certificateCode ? "var(--brand-blue-600, #004b87)" : "var(--na-gray-700, #334155)",
+                        border: copiedCode === cert.certificateCode ? "1px solid var(--brand-accent-200, #bae6fd)" : "1px solid var(--na-gray-200, #e2e8f0)",
                         borderRadius: 8,
                         padding: "0.55rem 0.75rem",
                         fontSize: "0.8125rem",
@@ -527,7 +528,7 @@ export default function CertificatesClient({
                         style={{
                           height: "100%",
                           width: `${pct}%`,
-                          background: "var(--brand-accent-500, #0284c7)",
+                          background: "linear-gradient(90deg, #004b87 0%, #0088cc 100%)",
                           borderRadius: 4,
                         }}
                       />

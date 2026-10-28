@@ -88,7 +88,27 @@ export async function POST(request: Request) {
 
     const progressRatio = totalLessons > 0 ? completedCount / totalLessons : 0;
     const threshold = course.completionThreshold || 0.8;
-    const isCourseFinished = progressRatio >= 1.0 || progressRatio >= threshold;
+    const isProgressThresholdMet = progressRatio >= 1.0 || progressRatio >= threshold;
+
+    // Check if student has already earned a certificate or completed this course
+    const [existingEnrollment, existingCert] = await Promise.all([
+      prisma.enrollment.findUnique({
+        where: { userId_courseId: { userId, courseId } },
+      }),
+      prisma.certificate.findUnique({
+        where: { userId_courseId: { userId, courseId } },
+      }),
+    ]);
+
+    // GUARANTEE: If a student already earned a certificate or previously graduated,
+    // adding new material to the course NEVER demotes them or affects their certificate!
+    const isAlreadyGraduated =
+      existingEnrollment?.status === "COMPLETED" || Boolean(existingCert);
+    const isCourseFinished = isAlreadyGraduated || isProgressThresholdMet;
+
+    const finalCompletedAt =
+      existingEnrollment?.completedAt ||
+      (isCourseFinished ? new Date() : null);
 
     // 4. Update or create Enrollment progress
     const enrollment = await prisma.enrollment.upsert({
@@ -102,7 +122,7 @@ export async function POST(request: Request) {
         progress: progressRatio,
         lastAccessed: new Date(),
         status: isCourseFinished ? "COMPLETED" : "ACTIVE",
-        completedAt: isCourseFinished ? new Date() : null,
+        completedAt: finalCompletedAt,
       },
       create: {
         userId,
@@ -110,11 +130,37 @@ export async function POST(request: Request) {
         status: isCourseFinished ? "COMPLETED" : "ACTIVE",
         progress: progressRatio,
         lastAccessed: new Date(),
-        completedAt: isCourseFinished ? new Date() : null,
+        completedAt: finalCompletedAt,
       },
     });
 
-    // 5. Automatically generate certificate if course is completed
+    // 5. Coursework notification for quizzes, assignments, and practical exercises
+    if (isComplete && lesson) {
+      const courseworkTypes = [
+        "QUIZ",
+        "ASSIGNMENT",
+        "PROJECT",
+        "CODING_EXERCISE",
+        "SQL_EXERCISE",
+      ];
+      if (courseworkTypes.includes(lesson.type)) {
+        try {
+          const { notifyStudentCoursework } = await import("@/lib/notifications");
+          await notifyStudentCoursework({
+            userId,
+            courseTitle: course.title,
+            lessonTitle: lesson.title,
+            lessonType: lesson.type,
+            lessonId: lesson.id,
+            courseSlug: course.slug,
+          });
+        } catch (notifErr) {
+          console.warn("Could not dispatch coursework notification:", notifErr);
+        }
+      }
+    }
+
+    // 6. Automatically generate certificate if course is completed
     let generatedCertificate = null;
     if (isCourseFinished) {
       try {

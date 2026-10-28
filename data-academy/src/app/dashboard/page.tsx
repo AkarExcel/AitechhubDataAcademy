@@ -30,9 +30,9 @@ async function getDashboardData(userId: string) {
       take: 6,
     }),
     prisma.notification.findMany({
-      where: { userId, isRead: false },
+      where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 5,
+      take: 4,
     }),
     prisma.lessonProgress.findMany({
       where: { userId, isComplete: true },
@@ -42,7 +42,10 @@ async function getDashboardData(userId: string) {
     }),
   ]);
 
-  const [completedCount, certificateCount] = await Promise.all([
+  const [unreadNotificationCount, completedCount, certificateCount] = await Promise.all([
+    prisma.notification.count({
+      where: { userId, isRead: false },
+    }),
     prisma.enrollment.count({
       where: { userId, status: "COMPLETED" },
     }),
@@ -51,7 +54,15 @@ async function getDashboardData(userId: string) {
     }),
   ]);
 
-  return { user, enrollments, notifications, recentProgress, completedCount, certificateCount };
+  return {
+    user,
+    enrollments,
+    notifications,
+    unreadNotificationCount,
+    recentProgress,
+    completedCount,
+    certificateCount,
+  };
 }
 
 export const instant = false;
@@ -59,8 +70,15 @@ export const instant = false;
 export default async function StudentDashboard() {
   const sessionUser = await requireUser("/dashboard");
 
-  const { user, enrollments, notifications, recentProgress, completedCount, certificateCount } =
-    await getDashboardData(sessionUser.id);
+  const {
+    user,
+    enrollments,
+    notifications,
+    unreadNotificationCount,
+    recentProgress,
+    completedCount,
+    certificateCount,
+  } = await getDashboardData(sessionUser.id);
 
   const firstName = user?.profile?.firstName || "Learner";
   const hour = new Date().getHours();
@@ -82,7 +100,7 @@ export default async function StudentDashboard() {
         <DashboardSidebar
           user={user}
           role={sessionUser.role}
-          notificationCount={notifications.length}
+          notificationCount={unreadNotificationCount}
         />
 
       {/* Main content */}
@@ -103,6 +121,7 @@ export default async function StudentDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
           {[
             {
+              href: "#continue-learning",
               value: enrollments.length,
               label: "In Progress",
               color: "var(--na-blue-500)",
@@ -114,6 +133,7 @@ export default async function StudentDashboard() {
               ),
             },
             {
+              href: "/certificates",
               value: completedCount,
               label: "Completed",
               color: "var(--na-green-500)",
@@ -125,9 +145,10 @@ export default async function StudentDashboard() {
               ),
             },
             {
-              value: notifications.length,
+              href: "/notifications",
+              value: unreadNotificationCount,
               label: "Notifications",
-              color: "var(--na-amber)",
+              color: unreadNotificationCount > 0 ? "#ef4444" : "var(--na-amber)",
               icon: (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -136,6 +157,7 @@ export default async function StudentDashboard() {
               ),
             },
             {
+              href: "/certificates",
               value: certificateCount,
               label: "Certificates",
               color: "#005073",
@@ -147,10 +169,18 @@ export default async function StudentDashboard() {
               ),
             },
           ].map((stat) => (
-            <div
+            <Link
               key={stat.label}
+              href={stat.href}
               className="card"
-              style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}
+              style={{
+                padding: "1.25rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.5rem",
+                textDecoration: "none",
+                transition: "transform 0.15s ease, box-shadow 0.15s ease",
+              }}
             >
               <div style={{ color: stat.color }}>{stat.icon}</div>
               <div style={{ fontSize: "1.75rem", fontWeight: 800, color: stat.color, letterSpacing: "-0.03em" }}>
@@ -159,7 +189,7 @@ export default async function StudentDashboard() {
               <div style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", fontWeight: 500 }}>
                 {stat.label}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -302,6 +332,146 @@ export default async function StudentDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Recent Notifications & Course Updates */}
+        {notifications.length > 0 && (
+          <section style={{ marginBottom: "2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--na-gray-900)", margin: 0 }}>
+                  Recent Notifications & Course Updates
+                </h2>
+                {unreadNotificationCount > 0 && (
+                  <span
+                    style={{
+                      background: "#ef4444",
+                      color: "#fff",
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: 999,
+                    }}
+                  >
+                    {unreadNotificationCount} new
+                  </span>
+                )}
+              </div>
+              <Link
+                href="/notifications"
+                style={{ fontSize: "0.875rem", color: "var(--na-blue-500)", fontWeight: 600, textDecoration: "none" }}
+              >
+                View all alerts →
+              </Link>
+            </div>
+
+            <div className="card">
+              <div style={{ padding: "0 0.5rem" }}>
+                {notifications.map((notif, i) => {
+                  const isCert = ["CERTIFICATE", "COURSE_COMPLETE"].includes(notif.type);
+                  const isUpdate = ["ANNOUNCEMENT", "SYSTEM"].includes(notif.type);
+
+                  return (
+                    <Link
+                      key={notif.id}
+                      href={notif.link || "/notifications"}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.875rem",
+                        padding: "0.875rem 0.5rem",
+                        borderBottom: i < notifications.length - 1 ? "1px solid var(--na-gray-100)" : "none",
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          background: isCert
+                            ? "var(--na-green-50, #f0fdf4)"
+                            : isUpdate
+                            ? "var(--brand-accent-50, #f0f9ff)"
+                            : "var(--na-amber-50, #fffbeb)",
+                          color: isCert
+                            ? "#16a34a"
+                            : isUpdate
+                            ? "#0284c7"
+                            : "#d97706",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isCert ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                            <circle cx="12" cy="8" r="6" />
+                            <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+                          </svg>
+                        ) : isUpdate ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                            <path d="m9 11 3 3L22 4" />
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                          </svg>
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <span
+                            style={{
+                              fontSize: "0.875rem",
+                              fontWeight: notif.isRead ? 600 : 800,
+                              color: "var(--na-gray-900)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {notif.title}
+                          </span>
+                          {!notif.isRead && (
+                            <span
+                              style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                background: "#0284c7",
+                                flexShrink: 0,
+                              }}
+                            />
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--na-gray-500)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {notif.message}
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: "0.75rem", color: "var(--na-gray-400)", flexShrink: 0 }}>
+                        {formatDate(notif.createdAt)}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </section>
