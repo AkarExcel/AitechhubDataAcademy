@@ -122,6 +122,30 @@ export async function PUT(
       }
     }
 
+    // If non-admin tutor is updating, verify instructor assignment and disallow publishing
+    if (authResult.user.role !== "ADMIN") {
+      const isInstructor = await prisma.courseInstructor.findFirst({
+        where: { courseId: id, userId: authResult.user.id },
+      });
+
+      if (!isInstructor) {
+        return NextResponse.json(
+          { error: "You are not an assigned instructor for this course." },
+          { status: 403 }
+        );
+      }
+
+      if (parsed.data.status === "PUBLISHED") {
+        return NextResponse.json(
+          { error: "Only administrators can publish courses to the academy catalog." },
+          { status: 403 }
+        );
+      }
+
+      // Non-admins cannot modify isFeatured
+      delete (parsed.data as any).isFeatured;
+    }
+
     const updated = await prisma.course.update({
       where: { id },
       data: parsed.data,

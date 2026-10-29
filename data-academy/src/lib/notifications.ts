@@ -5,7 +5,8 @@ export type NotificationCategory =
   | "UNREAD"
   | "COURSE_UPDATE"
   | "COURSEWORK"
-  | "CERTIFICATE";
+  | "CERTIFICATE"
+  | "SPECIALIZED";
 
 export interface CreateNotificationParams {
   userId: string;
@@ -46,6 +47,44 @@ export interface CourseBroadcastParams {
   includeCompleted?: boolean;
   audience?: AudienceSegment;
   senderId?: string;
+}
+
+export interface SpecializedStudentNotificationParams {
+  studentId: string;
+  title: string;
+  message: string;
+  link?: string | null;
+  type?:
+    | "ANNOUNCEMENT"
+    | "SYSTEM"
+    | "DEADLINE"
+    | "GRADE"
+    | "ASSESSMENT_RESULT"
+    | "COURSE_COMPLETE"
+    | "CERTIFICATE";
+  senderId?: string;
+  senderName?: string;
+  senderRole?: "ADMIN" | "TUTOR" | string;
+  courseId?: string;
+  specializedType?: "FEEDBACK" | "MENTOR_NOTE" | "PROGRESS_CHECK" | "DIRECT_MESSAGE";
+}
+
+export interface TutorNotificationParams {
+  title: string;
+  message: string;
+  link?: string | null;
+  type?:
+    | "ANNOUNCEMENT"
+    | "SYSTEM"
+    | "DEADLINE"
+    | "GRADE"
+    | "ASSESSMENT_RESULT"
+    | "COURSE_COMPLETE"
+    | "CERTIFICATE";
+  senderId?: string;
+  senderName?: string;
+  tutorId?: string; // specific tutor ID, or 'all' for all tutors
+  tutorIds?: string[]; // multiple specific tutor IDs (multi-choice)
 }
 
 /**
@@ -226,12 +265,266 @@ export async function getCourseAudienceBreakdown(courseId?: string) {
 }
 
 /**
- * Retrieves recent reminder broadcasts
+ * Dispatches a specialized individual notification to a student from a Tutor or Admin
  */
-export async function getRecentBroadcasts(limit = 10) {
+export async function sendSpecializedStudentNotification({
+  studentId,
+  title,
+  message,
+  link,
+  type = "ANNOUNCEMENT",
+  senderId,
+  senderName,
+  senderRole = "TUTOR",
+  courseId,
+  specializedType = "DIRECT_MESSAGE",
+}: SpecializedStudentNotificationParams) {
+  try {
+    // 1. Fetch student info for verification and audit
+    const student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        profile: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    if (!student) {
+      return { success: false, error: "Student not found." };
+    }
+
+    const studentFullName = student.profile?.firstName
+      ? `${student.profile.firstName} ${student.profile.lastName || ""}`.trim()
+      : student.email;
+
+    // 2. Format title with sender attribution if not already present
+    let formattedTitle = title.trim();
+    const prefix =
+      senderRole === "ADMIN"
+        ? "📢 [Admin Message]"
+        : `💬 [From Instructor ${senderName || "Tutor"}]`;
+
+    if (!formattedTitle.startsWith("💬") && !formattedTitle.startsWith("📢")) {
+      formattedTitle = `${prefix} ${formattedTitle}`;
+    }
+
+    // 3. Create single targeted notification
+    const notification = await prisma.notification.create({
+      data: {
+        userId: studentId,
+        type,
+        title: formattedTitle,
+        message: message.trim(),
+        link: link || null,
+        isRead: false,
+      },
+    });
+
+    // 4. Log in AuditLog
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: senderId || null,
+          action: "SPECIALIZED_STUDENT_NOTIFICATION",
+          entityType: "User",
+          entityId: studentId,
+          metadata: {
+            title: formattedTitle,
+            message: message.trim(),
+            link: link || null,
+            type,
+            specializedType,
+            recipientName: studentFullName,
+            recipientEmail: student.email,
+            senderName,
+            senderRole,
+            courseId: courseId || null,
+            recipientCount: 1,
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Could not log specialized notification audit:", auditErr);
+    }
+
+    return {
+      success: true,
+      notification,
+      studentName: studentFullName,
+      studentEmail: student.email,
+    };
+  } catch (error) {
+    console.error("Error sending specialized student notification:", error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Dispatches a notification from Admin to Tutors / Instructors (all or specific)
+ */
+export async function sendTutorNotification({
+  title,
+  message,
+  link,
+  type = "ANNOUNCEMENT",
+  senderId,
+  senderName,
+  tutorId,
+  tutorIds,
+}: TutorNotificationParams) {
+  try {
+    let targetTutors: { id: string; email: string; name?: string }[] = [];
+
+    // 1. Multiple specific tutors
+    if (tutorIds && tutorIds.length > 0) {
+      const selected = await prisma.user.findMany({
+        where: { id: { in: tutorIds }, isActive: true },
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      targetTutors = selected.map((t) => ({
+        id: t.id,
+        email: t.email,
+        name: t.profile?.firstName
+          ? `${t.profile.firstName} ${t.profile.lastName || ""}`.trim()
+          : t.email,
+      }));
+    } else if (tutorId && tutorId !== "all") {
+      // 2. Single specific tutor
+      const tutor = await prisma.user.findUnique({
+        where: { id: tutorId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      if (!tutor) {
+        return { count: 0, error: "Target tutor not found." };
+      }
+
+      targetTutors = [
+        {
+          id: tutor.id,
+          email: tutor.email,
+          name: tutor.profile?.firstName
+            ? `${tutor.profile.firstName} ${tutor.profile.lastName || ""}`.trim()
+            : tutor.email,
+        },
+      ];
+    } else {
+      // 3. All active tutors
+      const tutors = await prisma.user.findMany({
+        where: {
+          OR: [{ role: "TUTOR" }, { tutorProfile: { isNot: null } }],
+          isActive: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      targetTutors = tutors.map((t) => ({
+        id: t.id,
+        email: t.email,
+        name: t.profile?.firstName
+          ? `${t.profile.firstName} ${t.profile.lastName || ""}`.trim()
+          : t.email,
+      }));
+    }
+
+    if (!targetTutors.length) {
+      return { count: 0, totalTargeted: 0 };
+    }
+
+    let formattedTitle = title.trim();
+    if (!formattedTitle.startsWith("📢 [Faculty Notice]")) {
+      formattedTitle = `📢 [Faculty Notice] ${formattedTitle}`;
+    }
+
+    const notificationsData = targetTutors.map((t) => ({
+      userId: t.id,
+      type,
+      title: formattedTitle,
+      message: message.trim(),
+      link: link || null,
+      isRead: false,
+    }));
+
+    const result = await prisma.notification.createMany({
+      data: notificationsData,
+    });
+
+    const isSingle = targetTutors.length === 1;
+    const targetDisplayName = isSingle
+      ? targetTutors[0].name
+      : targetTutors.length < (tutorId === "all" ? 999 : targetTutors.length + 1) && (tutorIds && tutorIds.length > 0)
+      ? `${targetTutors.length} Selected Instructors`
+      : "All Faculty Tutors";
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: senderId || null,
+          action: "TUTOR_NOTIFICATION_DISPATCH",
+          entityType: "Tutors",
+          entityId: isSingle ? targetTutors[0].id : null,
+          metadata: {
+            title: formattedTitle,
+            message: message.trim(),
+            link: link || null,
+            type,
+            recipientCount: result.count,
+            tutorName: targetDisplayName,
+            senderName: senderName || "Platform Administrator",
+            audience: isSingle
+              ? `Tutor: ${targetTutors[0].name}`
+              : tutorIds && tutorIds.length > 0
+              ? `${targetTutors.length} Selected Instructors`
+              : "ALL_TUTORS",
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Could not log tutor notification audit:", auditErr);
+    }
+
+    return {
+      count: result.count,
+      totalTargeted: targetTutors.length,
+      targetName: targetDisplayName,
+    };
+  } catch (error) {
+    console.error("Error sending tutor notification:", error);
+    return { count: 0, error };
+  }
+}
+
+/**
+ * Retrieves recent reminder and specialized broadcasts
+ */
+export async function getRecentBroadcasts(limit = 15) {
   try {
     const logs = await prisma.auditLog.findMany({
-      where: { action: "COURSE_REMINDER_BROADCAST" },
+      where: {
+        action: {
+          in: [
+            "COURSE_REMINDER_BROADCAST",
+            "SPECIALIZED_STUDENT_NOTIFICATION",
+            "TUTOR_NOTIFICATION_DISPATCH",
+          ],
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
@@ -241,18 +534,27 @@ export async function getRecentBroadcasts(limit = 10) {
 
     return logs.map((log) => {
       const meta = (log.metadata as any) || {};
+      let audienceDisplay = meta.audience || "ALL";
+
+      if (log.action === "SPECIALIZED_STUDENT_NOTIFICATION") {
+        audienceDisplay = meta.recipientName ? `Student: ${meta.recipientName}` : "Specialized Student";
+      } else if (log.action === "TUTOR_NOTIFICATION_DISPATCH") {
+        audienceDisplay = meta.tutorName ? `Tutor: ${meta.tutorName}` : "All Instructors";
+      }
+
       return {
         id: log.id,
         createdAt: log.createdAt,
         courseId: log.entityId,
-        title: meta.title || "Course Update Reminder",
+        title: meta.title || "Notification Dispatch",
         message: meta.message || "",
         type: meta.type || "ANNOUNCEMENT",
-        audience: meta.audience || "ALL",
-        recipientCount: meta.recipientCount || 0,
+        audience: audienceDisplay,
+        recipientCount: meta.recipientCount ?? 1,
         senderName: log.user?.profile?.firstName
           ? `${log.user.profile.firstName} ${log.user.profile.lastName || ""}`.trim()
-          : log.user?.email || "System Admin",
+          : log.user?.email || meta.senderName || "System Admin",
+        action: log.action,
       };
     });
   } catch (err) {
@@ -312,6 +614,14 @@ export async function getStudentNotifications(
       where.type = { in: ["GRADE", "ASSESSMENT_RESULT", "DEADLINE"] };
     } else if (category === "CERTIFICATE") {
       where.type = { in: ["CERTIFICATE", "COURSE_COMPLETE"] };
+    } else if (category === "SPECIALIZED") {
+      where.OR = [
+        { title: { contains: "[" } },
+        { message: { contains: "Instructor" } },
+        { message: { contains: "Tutor" } },
+        { title: { contains: "💬" } },
+        { title: { contains: "📢" } },
+      ];
     }
 
     const [notifications, unreadCount, totalCount] = await Promise.all([

@@ -18,8 +18,8 @@ const footerLinks = {
     { href: "/paths#sql", label: "SQL & Databases" },
   ],
   Support: [
-    { href: "/help", label: "Help Center" },
-    { href: "/contact", label: "Support" },
+    { href: "/support", label: "Help Center & Support" },
+    { href: "/feedback", label: "Share Feedback" },
     { href: "/privacy", label: "Privacy Policy" },
     { href: "/terms", label: "Terms of Service" },
   ],

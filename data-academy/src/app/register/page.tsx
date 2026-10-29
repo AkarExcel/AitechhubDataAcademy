@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,25 +36,48 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          password: form.password,
-        }),
+      const supabase = createClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            firstName: form.firstName,
+            lastName: form.lastName,
+            name: `${form.firstName} ${form.lastName}`.trim(),
+            role: "STUDENT",
+          },
+        },
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Registration failed. Please try again.");
+      if (signUpError) {
+        setError(signUpError.message || "Registration failed. Please try again.");
+        setLoading(false);
         return;
       }
 
-      // Redirect to login with success message
-      router.push("/login?registered=true");
+      // Sync user and profile into Prisma database
+      try {
+        await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: data.user?.id,
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+          }),
+        });
+      } catch {
+        // Fallback auto-provision will run on first login
+      }
+
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        router.push("/login?registered=true");
+      }
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 function LoginForm() {
   const router = useRouter();
@@ -20,39 +20,39 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const result = await signIn("credentials", {
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
-        redirect: false,
       });
 
-      if (result?.error) {
-        setError("Invalid email or password. Please try again.");
+      if (signInError) {
+        setError(signInError.message || "Invalid email or password. Please try again.");
         setLoading(false);
-      } else {
-        const session = await getSession();
-        const role = session?.user?.role;
-
-        const explicitCallback = params.get("callbackUrl");
-        let destination = "/dashboard";
-
-        if (
-          explicitCallback &&
-          explicitCallback !== "/dashboard" &&
-          explicitCallback !== "/login" &&
-          explicitCallback !== "/"
-        ) {
-          destination = explicitCallback;
-        } else if (role === "ADMIN") {
-          destination = "/admin";
-        } else if (role === "TUTOR") {
-          destination = "/tutor";
-        } else {
-          destination = "/dashboard";
-        }
-
-        window.location.href = destination;
+        return;
       }
+
+      const role = data.user?.user_metadata?.role;
+      const explicitCallback = params.get("callbackUrl");
+      let destination = "/dashboard";
+
+      if (
+        explicitCallback &&
+        explicitCallback !== "/dashboard" &&
+        explicitCallback !== "/login" &&
+        explicitCallback !== "/"
+      ) {
+        destination = explicitCallback;
+      } else if (role === "ADMIN") {
+        destination = "/admin";
+      } else if (role === "TUTOR") {
+        destination = "/tutor";
+      } else {
+        destination = "/dashboard";
+      }
+
+      router.push(destination);
+      router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

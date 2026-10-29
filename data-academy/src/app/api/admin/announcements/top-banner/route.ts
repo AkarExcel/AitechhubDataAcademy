@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiAuth } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_TOP_BANNERS, TopBannerItem } from "@/app/api/announcements/top-banner/route";
+import { DEFAULT_TOP_BANNERS, TopBannerItem } from "@/lib/top-banners";
 
 // GET /api/admin/announcements/top-banner - Get all banners (active and inactive) for admin management
 export async function GET() {

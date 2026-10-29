@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateResetToken } from "@/lib/tokens";
+import { getBaseUrl } from "@/lib/utils";
 import { z } from "zod";
 
 const forgotPasswordSchema = z.object({
@@ -36,16 +37,18 @@ export async function POST(req: NextRequest) {
     if (user && user.isActive) {
       // 1. Generate secure cryptographic token
       const token = generateResetToken(user);
-      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const baseUrl = getBaseUrl();
       resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-      // 2. Print reset link in terminal for local development
-      console.log("\n" + "=".repeat(75));
-      console.log("📬 [DEV MODE - PASSWORD RESET LINK]");
-      console.log(`To:         ${user.email}`);
-      console.log(`Reset URL:  ${resetUrl}`);
-      console.log("Expires in: 60 minutes");
-      console.log("=".repeat(75) + "\n");
+      // 2. Print reset link in terminal for local development only
+      if (process.env.NODE_ENV !== "production") {
+        console.log("\n" + "=".repeat(75));
+        console.log("📬 [DEV MODE - PASSWORD RESET LINK]");
+        console.log(`To:         ${user.email}`);
+        console.log(`Reset URL:  ${resetUrl}`);
+        console.log("Expires in: 60 minutes");
+        console.log("=".repeat(75) + "\n");
+      }
 
       // 3. Store notification for the user
       try {

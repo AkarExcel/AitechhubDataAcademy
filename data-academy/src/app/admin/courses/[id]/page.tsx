@@ -102,6 +102,7 @@ export default async function CourseEditorPage({
         categories={categories}
         availableTutors={availableTutors}
         defaultTab={tab || "curriculum"}
+        isAdmin={!isTutor}
       />
     </div>
   );

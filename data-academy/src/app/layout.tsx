@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { SessionProvider } from "next-auth/react";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -44,12 +44,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} data-scroll-behavior="smooth">
       <body style={{ fontFamily: "var(--font-inter), var(--font-sans)" }}>
-        <SessionProvider>
+        <AuthProvider>
           <Suspense fallback={null}>
             <NavigationProgressBar />
           </Suspense>
           {children}
-        </SessionProvider>
+        </AuthProvider>
       </body>
     </html>
   );

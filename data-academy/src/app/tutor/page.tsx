@@ -1,4 +1,3 @@
-import Navbar from "@/components/layout/Navbar";
 import { requireTutor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -88,112 +87,150 @@ export default async function TutorDashboard() {
     totalModules,
   } = await getTutorData(sessionUser.id);
 
+  const isVerified = sessionUser.role === "ADMIN" || Boolean(tutorProfile?.isApproved);
+
   const displayName = user?.profile?.firstName
     ? `${user.profile.firstName} ${user.profile.lastName}`
     : sessionUser.name || "Instructor";
 
   return (
-    <>
-      <Navbar />
-      <main style={{ minHeight: "100vh", background: "var(--na-gray-50)", paddingBottom: "4rem" }}>
-        {/* TOP HERO HEADER */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, var(--na-navy-900) 0%, #003a57 100%)",
-            color: "#fff",
-            padding: "2.5rem 0 3.5rem",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div className="container">
-            {sessionUser.role === "ADMIN" && (
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.25rem 0.75rem",
-                  background: "rgba(4, 159, 217, 0.2)",
-                  border: "1px solid rgba(4, 159, 217, 0.4)",
-                  borderRadius: "9999px",
-                  fontSize: "0.75rem",
-                  color: "var(--na-blue-300)",
-                  marginBottom: "1rem",
-                }}
-              >
-                <span>Viewing Instructor Portal as Administrator</span>
-                <Link
-                  href="/admin"
-                  style={{ color: "#fff", textDecoration: "underline", fontWeight: 600 }}
-                >
-                  Admin Center →
-                </Link>
-              </div>
-            )}
-
+    <div style={{ maxWidth: 1200, margin: "0 auto", paddingBottom: "3rem" }}>
+      {/* TOP HERO HEADER */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, var(--na-navy-900) 0%, #003a57 100%)",
+          color: "#fff",
+          padding: "2rem",
+          borderRadius: 16,
+          boxShadow: "0 8px 24px rgba(0, 24, 48, 0.15)",
+          marginBottom: "2rem",
+        }}
+      >
+        <div>
+          {sessionUser.role === "ADMIN" && (
             <div
               style={{
-                display: "flex",
-                flexWrap: "wrap",
+                display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                gap: "1.5rem",
+                gap: "0.5rem",
+                padding: "0.25rem 0.75rem",
+                background: "rgba(4, 159, 217, 0.2)",
+                border: "1px solid rgba(4, 159, 217, 0.4)",
+                borderRadius: "9999px",
+                fontSize: "0.75rem",
+                color: "var(--na-blue-300)",
+                marginBottom: "1rem",
               }}
             >
-              <div>
+              <span>Viewing Instructor Portal as Administrator</span>
+              <Link
+                href="/admin"
+                style={{ color: "#fff", textDecoration: "underline", fontWeight: 600 }}
+              >
+                Admin Center →
+              </Link>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1.5rem",
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
                 <span
                   style={{
-                    fontSize: "0.8125rem",
-                    fontWeight: 700,
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
                     color: "var(--na-green-400)",
-                    display: "block",
-                    marginBottom: "0.35rem",
                   }}
                 >
-                  Instructor &amp; Tutor Portal
+                  Faculty Portal
                 </span>
-                <h1 style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", fontWeight: 800, color: "#fff", margin: 0 }}>
-                  Welcome, {displayName}
-                </h1>
-                <p style={{ marginTop: "0.35rem", color: "var(--na-gray-300)", fontSize: "0.9375rem" }}>
-                  {tutorProfile?.headline || "Manage your curriculum, review active student cohorts, and create course material."}
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                <Link
-                  href="/admin/courses/new"
-                  className="btn btn-primary"
+                <span
                   style={{
-                    background: "var(--na-green-500)",
-                    borderColor: "var(--na-green-500)",
-                    color: "#fff",
+                    fontSize: "0.6875rem",
                     fontWeight: 700,
-                    boxShadow: "0 4px 12px rgba(106, 191, 75, 0.3)",
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: 999,
+                    background: isVerified ? "rgba(16, 185, 129, 0.2)" : "rgba(245, 158, 11, 0.2)",
+                    color: isVerified ? "#34d399" : "#fbbf24",
+                    border: isVerified ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(245, 158, 11, 0.4)",
                   }}
                 >
-                  + Create New Course
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="btn btn-secondary"
-                  style={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.2)",
-                  }}
-                >
-                  Student Dashboard
-                </Link>
+                  {isVerified ? "✓ Verified Educator" : "⏳ Verification Pending"}
+                </span>
               </div>
+              <h1 style={{ fontSize: "clamp(1.5rem, 2.5vw, 2rem)", fontWeight: 800, color: "#fff", margin: 0 }}>
+                Welcome back, {displayName}
+              </h1>
+              <p style={{ marginTop: "0.35rem", color: "var(--na-gray-300)", fontSize: "0.9375rem" }}>
+                {tutorProfile?.headline || "Manage your curriculum, review active student cohorts, and create course material."}
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <Link
+                href="/tutor/notifications"
+                className="btn btn-secondary"
+                style={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.3)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                  fontWeight: 700,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <span>Dispatch Alert</span>
+              </Link>
+              <Link
+                href="/tutor/courses/new"
+                className="btn btn-primary"
+                style={{
+                  background: isVerified ? "var(--na-green-500)" : "#64748b",
+                  borderColor: isVerified ? "var(--na-green-500)" : "#64748b",
+                  color: "#fff",
+                  fontWeight: 700,
+                  boxShadow: isVerified ? "0 4px 12px rgba(106, 191, 75, 0.3)" : "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                }}
+              >
+                {!isVerified && <span>🔒</span>}
+                <span>+ Create Course</span>
+              </Link>
+              <Link
+                href="/tutor/courses"
+                className="btn btn-secondary"
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.2)",
+                }}
+              >
+                My Courses ({assignedCourses.length})
+              </Link>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* METRICS ROW */}
-        <div className="container" style={{ marginTop: "-2rem" }}>
+      {/* METRICS ROW */}
+      <div style={{ marginBottom: "2.5rem" }}>
           <div
             style={{
               display: "grid",
@@ -314,7 +351,7 @@ export default async function TutorDashboard() {
                   </p>
                 </div>
                 <Link
-                  href="/admin/courses/new"
+                  href="/tutor/courses/new"
                   className="btn btn-sm btn-secondary"
                   style={{ fontSize: "0.8125rem" }}
                 >
@@ -357,7 +394,7 @@ export default async function TutorDashboard() {
                   <p style={{ fontSize: "0.875rem", color: "var(--na-gray-500)", maxWidth: 420, margin: "0 auto 1.5rem" }}>
                     You have not been assigned to any published courses yet. Create a new course syllabus or contact the academy administrator.
                   </p>
-                  <Link href="/admin/courses/new" className="btn btn-primary btn-sm">
+                  <Link href="/tutor/courses/new" className="btn btn-primary btn-sm">
                     Create Your First Course
                   </Link>
                 </div>
@@ -446,7 +483,7 @@ export default async function TutorDashboard() {
 
                         <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
                           <Link
-                            href={`/admin/courses/${course.id}`}
+                            href={`/tutor/courses/${course.id}`}
                             className="btn btn-sm btn-primary"
                             style={{
                               fontSize: "0.8125rem",
@@ -482,6 +519,61 @@ export default async function TutorDashboard() {
 
             {/* RIGHT COLUMN: RECENT ENROLLMENTS & PROFILE */}
             <div>
+              {/* Student Outreach & Specialised Notifications Card */}
+              <div
+                className="card"
+                style={{
+                  padding: "1.5rem",
+                  background: "linear-gradient(135deg, #001830 0%, #003a57 100%)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  marginBottom: "1.5rem",
+                  boxShadow: "0 6px 20px rgba(0, 24, 48, 0.15)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "6px",
+                      background: "rgba(255,255,255,0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--na-green-400)",
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </div>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "#fff" }}>
+                    Student Outreach Center
+                  </h3>
+                </div>
+                <p style={{ fontSize: "0.8125rem", color: "var(--na-gray-300)", lineHeight: 1.5, margin: "0 0 1rem 0" }}>
+                  Send specialised 1-on-1 feedback, assignment review guidance, or broadcast course updates to your students.
+                </p>
+                <Link
+                  href="/admin/notifications"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    fontSize: "0.8125rem",
+                    background: "var(--na-green-500)",
+                    borderColor: "var(--na-green-500)",
+                    color: "#fff",
+                  }}
+                >
+                  📢 Open Notification Dispatcher &rarr;
+                </Link>
+              </div>
+
               {/* Tutor Profile Card */}
               <div
                 className="card"
@@ -604,10 +696,44 @@ export default async function TutorDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Faculty Help & Feedback */}
+              <div
+                className="card"
+                style={{
+                  padding: "1.25rem 1.5rem",
+                  background: "#fff",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--na-gray-200)",
+                  marginTop: "1.5rem",
+                }}
+              >
+                <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--na-navy-900)", marginBottom: "0.35rem" }}>
+                  Instructor Support &amp; Feedback
+                </h3>
+                <p style={{ fontSize: "0.8125rem", color: "var(--na-gray-500)", margin: "0 0 0.85rem 0", lineHeight: 1.45 }}>
+                  Need help with course sandboxes or curriculum reviews? Have suggestions to improve the teaching experience?
+                </p>
+                <div style={{ display: "flex", gap: "0.6rem" }}>
+                  <Link
+                    href="/support"
+                    className="btn btn-sm btn-secondary"
+                    style={{ flex: 1, justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}
+                  >
+                    🎫 Help Desk
+                  </Link>
+                  <Link
+                    href="/feedback"
+                    className="btn btn-sm btn-secondary"
+                    style={{ flex: 1, justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}
+                  >
+                    ⭐ Feedback
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </main>
-    </>
+      </div>
   );
 }

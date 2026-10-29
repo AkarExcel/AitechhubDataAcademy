@@ -19,7 +19,7 @@ interface NotificationsClientProps {
   initialUnreadCount: number;
 }
 
-type TabType = "ALL" | "UNREAD" | "COURSE_UPDATE" | "COURSEWORK" | "CERTIFICATE";
+type TabType = "ALL" | "UNREAD" | "SPECIALIZED" | "COURSE_UPDATE" | "COURSEWORK" | "CERTIFICATE";
 
 export default function NotificationsClient({
   initialNotifications,
@@ -95,6 +95,16 @@ export default function NotificationsClient({
   const filteredNotifications = notifications.filter((item) => {
     // 1. Tab filter
     if (activeTab === "UNREAD" && item.isRead) return false;
+    if (activeTab === "SPECIALIZED") {
+      const isSpec =
+        item.title.includes("💬") ||
+        item.title.includes("[From Instructor") ||
+        item.title.includes("[Admin Message]") ||
+        item.title.includes("[Faculty Notice]") ||
+        item.message.includes("Instructor") ||
+        item.message.includes("Tutor");
+      if (!isSpec) return false;
+    }
     if (activeTab === "COURSE_UPDATE" && !["ANNOUNCEMENT", "SYSTEM"].includes(item.type)) return false;
     if (activeTab === "COURSEWORK" && !["GRADE", "ASSESSMENT_RESULT", "DEADLINE"].includes(item.type)) return false;
     if (activeTab === "CERTIFICATE" && !["CERTIFICATE", "COURSE_COMPLETE"].includes(item.type)) return false;
@@ -122,7 +132,39 @@ export default function NotificationsClient({
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const getNotificationTheme = (type: string) => {
+  const getNotificationTheme = (type: string, title?: string) => {
+    // Specialised 1-on-1 Student Notification Theme
+    if (title?.includes("[From Instructor") || title?.includes("💬") || title?.includes("[Admin Message]")) {
+      return {
+        iconBg: "linear-gradient(135deg, #4338ca 0%, #6366f1 100%)",
+        color: "#3730a3",
+        badgeBg: "#e0e7ff",
+        label: title.includes("[From Instructor") ? "Instructor Feedback" : "Specialised Message",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ),
+      };
+    }
+
+    // Faculty & Tutor Notice Theme
+    if (title?.includes("[Faculty Notice]")) {
+      return {
+        iconBg: "linear-gradient(135deg, #b45309 0%, #f59e0b 100%)",
+        color: "#92400e",
+        badgeBg: "#fef3c7",
+        label: "Faculty Notice",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          </svg>
+        ),
+      };
+    }
+
     switch (type) {
       case "CERTIFICATE":
       case "COURSE_COMPLETE":
@@ -182,6 +224,16 @@ export default function NotificationsClient({
         };
     }
   };
+
+  const specializedCount = notifications.filter(
+    (n) =>
+      n.title.includes("💬") ||
+      n.title.includes("[From Instructor") ||
+      n.title.includes("[Admin Message]") ||
+      n.title.includes("[Faculty Notice]") ||
+      n.message.includes("Instructor") ||
+      n.message.includes("Tutor")
+  ).length;
 
   const courseUpdateCount = notifications.filter((n) =>
     ["ANNOUNCEMENT", "SYSTEM"].includes(n.type)
@@ -359,6 +411,7 @@ export default function NotificationsClient({
           {[
             { id: "ALL", label: "All", count: notifications.length },
             { id: "UNREAD", label: "Unread", count: unreadCount },
+            { id: "SPECIALIZED", label: "Messages & Feedback", count: specializedCount },
             { id: "COURSE_UPDATE", label: "Course Updates", count: courseUpdateCount },
             { id: "COURSEWORK", label: "Coursework", count: courseworkCount },
             { id: "CERTIFICATE", label: "Certificates", count: certificateCount },
@@ -490,7 +543,7 @@ export default function NotificationsClient({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {filteredNotifications.map((item) => {
-            const theme = getNotificationTheme(item.type);
+            const theme = getNotificationTheme(item.type, item.title);
 
             return (
               <div

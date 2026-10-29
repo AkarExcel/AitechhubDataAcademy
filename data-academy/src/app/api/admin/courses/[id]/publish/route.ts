@@ -6,8 +6,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await validateApiAuth(["TUTOR", "ADMIN"]);
-  if (!authResult.authorized) return authResult.errorResponse;
+  // Only administrators are permitted to publish courses
+  const authResult = await validateApiAuth(["ADMIN"]);
+  if (!authResult.authorized) {
+    return NextResponse.json(
+      { error: "Only administrators can publish courses to the academy catalog." },
+      { status: 403 }
+    );
+  }
 
   const { id } = await params;
 

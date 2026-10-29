@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect, useRef } from "react";
+import { useSession, signOut } from "@/components/providers/AuthProvider";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
+
+const emptySubscribe = () => () => {};
 import { usePathname, useRouter } from "next/navigation";
 
 const categories = [
@@ -16,7 +18,7 @@ const categories = [
 
 export default function Navbar() {
   const { data: session, status } = useSession();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [announceDismissed, setAnnounceDismissed] = useState(false);
@@ -47,7 +49,6 @@ export default function Navbar() {
   const profileDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
     fetch("/api/announcements/top-banner")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -184,25 +185,27 @@ export default function Navbar() {
 
           {/* Right: Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
-            <Link
-              href={currentBanner.linkUrl || "/settings"}
-              style={{
-                display: "inline-block",
-                padding: "0.2rem 0.85rem",
-                borderRadius: "9999px",
-                border: "1px solid rgba(56, 189, 248, 0.4)",
-                color: "#fff",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                background: "rgba(56, 189, 248, 0.12)",
-                transition: "all var(--transition-fast)",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.25)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.12)"; }}
-            >
-              {currentBanner.linkText || "Read more"}
-            </Link>
+            {currentBanner.linkText?.trim() && currentBanner.linkUrl?.trim() && (
+              <Link
+                href={currentBanner.linkUrl.trim()}
+                style={{
+                  display: "inline-block",
+                  padding: "0.2rem 0.85rem",
+                  borderRadius: "9999px",
+                  border: "1px solid rgba(56, 189, 248, 0.4)",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  background: "rgba(56, 189, 248, 0.12)",
+                  transition: "all var(--transition-fast)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.25)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.12)"; }}
+              >
+                {currentBanner.linkText.trim()}
+              </Link>
+            )}
 
             {/* Pagination Controls */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: "rgba(255,255,255,0.75)", fontSize: "0.75rem" }}>
@@ -593,7 +596,7 @@ export default function Navbar() {
 
                 {/* Help / Support Icon */}
                 <Link
-                  href="/contact"
+                  href="/support"
                   style={{ color: "#1e293b", display: "flex", alignItems: "center" }}
                   title="Support & Help"
                   className="desktop-only"
@@ -730,7 +733,7 @@ export default function Navbar() {
                 <div style={{ width: 1, height: 16, background: "#cbd5e1" }} className="desktop-only" />
 
                 <Link
-                  href="/contact"
+                  href="/support"
                   style={{
                     color: "#1e293b",
                     display: "flex",
@@ -893,7 +896,7 @@ export default function Navbar() {
                 </>
               )}
               <Link
-                href="/contact"
+                href="/support"
                 onClick={() => setMobileOpen(false)}
                 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--na-gray-800)", textDecoration: "none" }}
               >
@@ -1206,8 +1209,8 @@ export default function Navbar() {
                   <span>Support</span>
                 </div>
                 {[
-                  { label: "Support", href: "/contact" },
-                  { label: "Feedback", href: "/contact" },
+                  { label: "Support", href: "/support" },
+                  { label: "Feedback", href: "/feedback" },
                 ].map((item) => (
                   <Link
                     key={item.label}

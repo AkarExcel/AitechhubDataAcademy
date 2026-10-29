@@ -51,3 +51,14 @@ export function getLevelColor(level: string): string {
 export function getLevelLabel(level: string): string {
   return level.charAt(0) + level.slice(1).toLowerCase();
 }
+
+/**
+ * Returns the public canonical base URL of the deployment.
+ * Supports NEXT_PUBLIC_APP_URL, Vercel system environment variables, and local fallback.
+ */
+export function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}

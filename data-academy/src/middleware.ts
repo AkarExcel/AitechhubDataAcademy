@@ -1,18 +1,19 @@
-import NextAuth from "next-auth";
-import { authConfig } from "@/lib/auth.config";
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-const { auth } = NextAuth(authConfig);
-export default auth;
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
+}
 
 export const config = {
   matcher: [
     /*
      * Match all request paths except for:
-     * - api (API routes, protected via permissions helpers)
+     * - api (API routes)
      * - _next/static (static build assets)
      * - _next/image (image optimization)
      * - favicon.ico (browser icon)
-     * - images and static media files
+     * - static media files (svg, png, jpg, etc.)
      */
     "/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],

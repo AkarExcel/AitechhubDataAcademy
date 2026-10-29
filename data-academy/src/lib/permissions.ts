@@ -1,4 +1,5 @@
-import { auth } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
@@ -63,16 +64,89 @@ export function hasRole(
  * Returns current authenticated session user, or null if unauthenticated.
  */
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
-  return {
-    id: session.user.id,
-    email: session.user.email || "",
-    name: session.user.name || "User",
-    role: (session.user.role as Role) || "STUDENT",
-    image: session.user.image,
-  };
+    if (!authUser || !authUser.email) return null;
+
+    // Find user in database
+    let dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ id: authUser.id }, { email: authUser.email }],
+      },
+      include: { profile: true },
+    });
+
+    // Auto-provision if user authenticated via Supabase but doesn't exist in Prisma yet
+    if (!dbUser) {
+      const meta = authUser.user_metadata || {};
+      const firstName =
+        meta.firstName ||
+        meta.first_name ||
+        authUser.email.split("@")[0] ||
+        "Student";
+      const lastName = meta.lastName || meta.last_name || "";
+      const role = (meta.role as Role) || "STUDENT";
+
+      try {
+        dbUser = await prisma.user.create({
+          data: {
+            id: authUser.id,
+            email: authUser.email,
+            passwordHash: "SUPABASE_AUTH",
+            role: role,
+            profile: {
+              create: {
+                firstName,
+                lastName,
+              },
+            },
+          },
+          include: { profile: true },
+        });
+      } catch {
+        dbUser = await prisma.user.findFirst({
+          where: { email: authUser.email },
+          include: { profile: true },
+        });
+      }
+    }
+
+    if (!dbUser) return null;
+
+    // Sync database role to Supabase metadata if not present
+    if (authUser.user_metadata?.role !== dbUser.role) {
+      supabase.auth.updateUser({
+        data: { role: dbUser.role },
+      }).catch(() => {});
+    }
+
+    const name = dbUser.profile
+      ? `${dbUser.profile.firstName} ${dbUser.profile.lastName}`.trim()
+      : authUser.user_metadata?.name || dbUser.email;
+
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: name || "User",
+      role: dbUser.role as Role,
+      image: dbUser.profile?.avatar || null,
+    };
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string"
+    ) {
+      throw error;
+    }
+    console.error("getCurrentUser error:", error);
+    return null;
+  }
 }
 
 /**

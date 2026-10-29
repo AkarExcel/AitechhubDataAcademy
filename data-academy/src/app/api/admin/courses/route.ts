@@ -83,6 +83,26 @@ export async function POST(req: NextRequest) {
   const authResult = await validateApiAuth(["TUTOR", "ADMIN"]);
   if (!authResult.authorized) return authResult.errorResponse;
 
+  const currentUser = authResult.user;
+  const isAdmin = currentUser.role === "ADMIN";
+
+  // Tutors must have an approved / verified profile before creating a course
+  if (!isAdmin) {
+    const tutorProfile = await prisma.tutorProfile.findUnique({
+      where: { userId: currentUser.id },
+    });
+
+    if (!tutorProfile || !tutorProfile.isApproved) {
+      return NextResponse.json(
+        {
+          error:
+            "Your tutor profile is pending verification. Only verified tutors can create courses.",
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   try {
     const body = await req.json();
     const parsed = courseCreateSchema.safeParse(body);
@@ -106,13 +126,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Only administrators can directly set status to PUBLISHED; tutors always start as DRAFT
+    const finalStatus = isAdmin ? (parsed.data.status || "DRAFT") : "DRAFT";
+
     const course = await prisma.course.create({
       data: {
         ...parsed.data,
+        status: finalStatus,
         categoryId: parsed.data.categoryId || null,
         instructors: {
           create: {
-            userId: authResult.user.id,
+            userId: currentUser.id,
             isPrimary: true,
           },
         },

@@ -146,6 +146,7 @@ export default function CourseEditorClient({
   categories,
   availableTutors,
   defaultTab,
+  isAdmin = true,
 }: {
   initialCourse: Course;
   categories: Array<{ id: string; name: string }>;
@@ -157,6 +158,7 @@ export default function CourseEditorClient({
     tutorProfile: { headline: string | null } | null;
   }>;
   defaultTab: string;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [course, setCourse] = useState<Course>(initialCourse);
@@ -984,23 +986,57 @@ export default function CourseEditorClient({
             Preview Course
           </Link>
 
-          <button
-            onClick={handleTogglePublish}
-            disabled={isPublishing}
-            className={`btn ${course.status === "PUBLISHED" ? "btn-secondary" : "btn-green"}`}
-            style={{
-              fontSize: "0.875rem",
-              fontWeight: 700,
-              padding: "0.5rem 1.25rem",
-              borderRadius: "9999px",
-            }}
-          >
-            {isPublishing
-              ? "Updating…"
-              : course.status === "PUBLISHED"
-              ? "Revert to Draft"
-              : "Publish Course"}
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={handleTogglePublish}
+              disabled={isPublishing}
+              className={`btn ${course.status === "PUBLISHED" ? "btn-secondary" : "btn-green"}`}
+              style={{
+                fontSize: "0.875rem",
+                fontWeight: 700,
+                padding: "0.5rem 1.25rem",
+                borderRadius: "9999px",
+              }}
+            >
+              {isPublishing
+                ? "Updating…"
+                : course.status === "PUBLISHED"
+                ? "Revert to Draft"
+                : "Publish Course"}
+            </button>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                padding: "0.45rem 1rem",
+                borderRadius: "9999px",
+                background: course.status === "PUBLISHED" ? "#ecfdf5" : "#fef3c7",
+                border: course.status === "PUBLISHED" ? "1px solid #a7f3d0" : "1px solid #fde68a",
+                color: course.status === "PUBLISHED" ? "#065f46" : "#92400e",
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+              }}
+              title={
+                course.status === "PUBLISHED"
+                  ? "This course is published and visible in the public student catalog."
+                  : "Course draft. Only academy administrators can publish courses to the catalog."
+              }
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                {course.status === "PUBLISHED" ? (
+                  <polyline points="20 6 9 17 4 12" />
+                ) : (
+                  <>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </>
+                )}
+              </svg>
+              <span>{course.status === "PUBLISHED" ? "Published (Live)" : "Draft (Pending Admin Publishing)"}</span>
+            </div>
+          )}
         </div>
       </div>
 

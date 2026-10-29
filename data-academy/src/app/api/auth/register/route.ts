@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const registerSchema = z.object({
+  id: z.string().optional(),
   firstName: z.string().min(1).max(50),
   lastName: z.string().min(1).max(50),
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,29 +22,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { firstName, lastName, email, password } = parsed.data;
+    const { id, firstName, lastName, email } = parsed.data;
 
-    // Check if user already exists
-    const existing = await prisma.user.findUnique({ where: { email } });
+    // Check if user already exists in Prisma database
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, ...(id ? [{ id }] : [])],
+      },
+    });
+
     if (existing) {
       return NextResponse.json(
-        { error: "An account with this email already exists." },
-        { status: 409 }
+        { message: "Account already exists.", userId: existing.id },
+        { status: 200 }
       );
     }
-
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user and profile in a transaction
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
+          ...(id ? { id } : {}),
           email,
-          passwordHash,
+          passwordHash: "SUPABASE_AUTH",
           role: "STUDENT",
         },
       });
+
       await tx.userProfile.create({
         data: {
           userId: newUser.id,
@@ -52,6 +56,7 @@ export async function POST(req: NextRequest) {
           lastName,
         },
       });
+
       return newUser;
     });
 
@@ -60,7 +65,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Register error:", error);
+    console.error("Register sync error:", error);
     return NextResponse.json(
       { error: "Registration failed. Please try again." },
       { status: 500 }
